@@ -70,7 +70,12 @@ class IngestSupervisor:
     def run(self) -> None:
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
-        log.info("ingest_started")
+        # Learned holidays survive restarts via the DB even if the first
+        # refresh of the day hasn't run yet.
+        from marketsense.universe.holidays import load_holidays_from_db
+
+        known = load_holidays_from_db(session)
+        log.info("ingest_started", holidays_known=known)
 
         while not self._stop:
             now = time.monotonic()
@@ -99,7 +104,13 @@ class IngestSupervisor:
         with session() as db:
             stats = sync_equity_lists(db, self._client)
             stats.update(sync_change_histories(db, self._client))
-            return stats
+        # Same daily cadence: the holiday calendar. Discovered live: NSE
+        # adds ad-hoc holidays (election days) mid-year; the static seed
+        # alone WILL be wrong eventually.
+        from marketsense.universe.holidays import refresh_holidays
+
+        stats["holidays"] = refresh_holidays(session, self._client)
+        return stats
 
     def _catchup(self) -> dict:
         from marketsense.agents.a1_ingestion.backfill import backfill_announcements

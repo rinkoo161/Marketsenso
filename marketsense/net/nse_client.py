@@ -50,7 +50,23 @@ IMPERSONATE = "chrome"  # curl_cffi picks its newest supported Chrome
 
 
 class NSEUnavailable(Exception):
-    """All retries exhausted or breaker open; caller should skip the cycle."""
+    """The request could not be served. `kind` tells the caller what to do:
+
+    'deferred'  — budget/breaker refusal. The resource is probably fine;
+                  retry next cycle.
+    'exhausted' — MAX_RETRIES spent against a responding server (404s,
+                  5xxs, transport noise). Retrying soon will not help,
+                  and for a 404 will never help — callers owning a work
+                  queue should mark the item failed, not requeue it.
+
+    Discovered live 2026-08-05, 25 min into the first soak: a 404
+    attachment treated as 'deferred' head-of-line-blocked the whole
+    document queue and re-burned 3 requests every 30s forever.
+    """
+
+    def __init__(self, msg: str, kind: str = "exhausted") -> None:
+        super().__init__(msg)
+        self.kind = kind
 
 
 @dataclass
@@ -132,7 +148,7 @@ class NSEClient:
             try:
                 self.budget.acquire()
             except (BudgetExceeded, CircuitOpen) as e:
-                raise NSEUnavailable(str(e)) from e
+                raise NSEUnavailable(str(e), kind="deferred") from e
 
             headers = {}
             if conditional:
@@ -189,7 +205,10 @@ class NSEClient:
             last_err = f"HTTP {r.status_code}"
             self._sleep_backoff(attempt)
 
-        raise NSEUnavailable(f"{url} failed after {MAX_RETRIES} attempts (last: {last_err})")
+        raise NSEUnavailable(
+            f"{url} failed after {MAX_RETRIES} attempts (last: {last_err})",
+            kind="exhausted",
+        )
 
     def get_json(self, url: str, *, timeout: float = 20.0):
         import json

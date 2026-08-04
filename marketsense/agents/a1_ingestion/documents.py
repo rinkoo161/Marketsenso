@@ -62,12 +62,20 @@ class DocumentFetcher:
                 try:
                     res = self.client.get(doc.url, timeout=60.0)
                 except NSEUnavailable as e:
-                    # Budget/breaker — leave pending, stop the cycle: the
-                    # rest would refuse too.
-                    log.info("doc_fetch_deferred", doc_id=doc_id, reason=str(e))
-                    stats["skipped_budget"] += 1
+                    if e.kind == "deferred":
+                        # Budget/breaker — leave pending, stop the cycle:
+                        # the rest would refuse too.
+                        log.info("doc_fetch_deferred", doc_id=doc_id, reason=str(e))
+                        stats["skipped_budget"] += 1
+                        db.commit()
+                        break
+                    # Exhausted (404 etc.) — THIS doc is bad; the queue
+                    # behind it is not. Mark failed and keep draining.
+                    doc.fetch_status = "failed"
+                    doc.fetch_error = str(e)[:500]
+                    stats["failed"] += 1
                     db.commit()
-                    break
+                    continue
                 except Exception as e:
                     doc.fetch_status = "failed"
                     doc.fetch_error = str(e)[:500]

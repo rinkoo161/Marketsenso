@@ -200,6 +200,14 @@ class NSEClient:
                 return FetchResult(200, r.content, etag, lastmod,
                                    not_modified=False, url=url, elapsed_ms=elapsed_ms)
 
+            if r.status_code == 404:
+                # Not transient at the seconds scale — in-process retries
+                # only tripled the burn (123 404s/30min at midday, soak
+                # 2026-08-05). Fail fast; the document retry ladder owns
+                # the minutes-scale archive lag.
+                self.budget.record_success()  # the server answered; not an outage
+                raise NSEUnavailable(f"{url} → HTTP 404", kind="exhausted")
+
             # 429/5xx/anything else: back off and retry
             self.budget.record_transport_failure()
             last_err = f"HTTP {r.status_code}"

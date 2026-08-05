@@ -40,7 +40,10 @@ def _ok(url, body=b"%PDF-fake"):
     return FetchResult(200, body, None, None, not_modified=False, url=url, elapsed_ms=1)
 
 
-def test_404_fails_one_doc_and_queue_keeps_draining(db_factory, tmp_path, monkeypatch):
+def test_404_schedules_retry_and_queue_keeps_draining(db_factory, tmp_path, monkeypatch):
+    """Soak finding #3: fresh XBRL 404s transiently (archives host is
+    eventually consistent) → first exhaustion schedules a retry, it does
+    NOT permanently fail, and it does NOT block the queue behind it."""
     from marketsense.core import config as cfg
 
     monkeypatch.setattr(type(cfg.settings()), "pdf_dir", tmp_path, raising=False)
@@ -52,11 +55,37 @@ def test_404_fails_one_doc_and_queue_keeps_draining(db_factory, tmp_path, monkey
         urls[2]: _ok(urls[2], b"%PDF-other"),
     })
     stats = DocumentFetcher(client, db_factory).drain()
-    assert stats == {"fetched": 2, "failed": 1, "skipped_budget": 0}
+    assert stats == {"fetched": 2, "failed": 0, "skipped_budget": 0, "retried": 1}
     with db_factory() as db:
         by_url = {d.url: d for d in db.scalars(select(Document))}
-        assert by_url[urls[1]].fetch_status == "failed"
+        assert by_url[urls[1]].fetch_status == "pending"       # retry, not dead
+        assert by_url[urls[1]].attempts == 1
+        assert by_url[urls[1]].next_attempt_at is not None     # backoff armed
         assert by_url[urls[2]].fetch_status == "fetched"  # NOT blocked behind the 404
+
+
+def test_exhausting_the_ladder_fails_permanently(db_factory):
+    from datetime import datetime, timedelta, timezone
+
+    from marketsense.agents.a1_ingestion.documents import MAX_ATTEMPTS
+
+    urls = ["https://x/dead.pdf"]
+    _seed_docs(db_factory, urls)
+    client = ScriptedClient({urls[0]: NSEUnavailable("404", kind="exhausted")})
+    fetcher = DocumentFetcher(client, db_factory)
+    for _ in range(MAX_ATTEMPTS):
+        fetcher.drain()
+        # collapse the backoff so the next drain sees the doc as due
+        with db_factory() as db:
+            d = db.scalar(select(Document))
+            if d.next_attempt_at:
+                d.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+    with db_factory() as db:
+        d = db.scalar(select(Document))
+        assert d.fetch_status == "failed"
+        assert d.attempts == MAX_ATTEMPTS
+    assert len(client.calls) == MAX_ATTEMPTS
 
 
 def test_budget_deferral_stops_cycle_and_leaves_pending(db_factory):
@@ -67,17 +96,19 @@ def test_budget_deferral_stops_cycle_and_leaves_pending(db_factory):
         urls[1]: _ok(urls[1]),
     })
     stats = DocumentFetcher(client, db_factory).drain()
-    assert stats == {"fetched": 0, "failed": 0, "skipped_budget": 1}
+    assert stats == {"fetched": 0, "failed": 0, "skipped_budget": 1, "retried": 0}
     assert client.calls == [urls[0]]  # never touched the second
     with db_factory() as db:
         assert all(d.fetch_status == "pending" for d in db.scalars(select(Document)))
 
 
-def test_failed_docs_are_not_retried_next_drain(db_factory):
+def test_backoff_gate_prevents_immediate_retry(db_factory):
+    """A doc waiting out its backoff is invisible to the next drain —
+    no budget burned re-asking for a file that just 404'd."""
     urls = ["https://x/gone2.pdf"]
     _seed_docs(db_factory, urls)
     client = ScriptedClient({urls[0]: NSEUnavailable("404", kind="exhausted")})
     DocumentFetcher(client, db_factory).drain()
     stats2 = DocumentFetcher(client, db_factory).drain()
-    assert stats2 == {"fetched": 0, "failed": 0, "skipped_budget": 0}
-    assert len(client.calls) == 1  # no second attempt at a known-dead URL
+    assert stats2 == {"fetched": 0, "failed": 0, "skipped_budget": 0, "retried": 0}
+    assert len(client.calls) == 1  # backoff gate held

@@ -28,6 +28,14 @@ log = get_logger("a1.docs")
 MAX_PER_CYCLE = 10
 MAX_BYTES = 50 * 1024 * 1024  # refuse >50MB; annual reports get big but not this big
 
+# Retry ladder for 'exhausted' fetches (soak finding #3, 2026-08-05):
+# freshly-broadcast XBRL 404s for the first minutes after its RSS item
+# appears — the archives host is eventually consistent. Ladder: retry
+# after 5m, 15m, 45m; only then is the URL genuinely dead. Live evidence:
+# PRIOR_INTIMATION files broadcast 11:44 IST 404'd at 11:46.
+RETRY_DELAYS_MIN = (5, 15, 45)
+MAX_ATTEMPTS = len(RETRY_DELAYS_MIN) + 1
+
 
 def _ext(url: str) -> str:
     ext = Path(url.split("?")[0]).suffix.lower().lstrip(".")
@@ -40,12 +48,19 @@ class DocumentFetcher:
         self.session_factory = session_factory
 
     def drain(self, limit: int = MAX_PER_CYCLE) -> dict:
-        stats = {"fetched": 0, "failed": 0, "skipped_budget": 0}
+        from datetime import datetime, timezone
+
+        stats = {"fetched": 0, "failed": 0, "skipped_budget": 0, "retried": 0}
+        now = datetime.now(timezone.utc)
         with self.session_factory() as db:
             pending = list(
                 db.scalars(
                     select(Document)
-                    .where(Document.fetch_status == "pending")
+                    .where(
+                        Document.fetch_status == "pending",
+                        (Document.next_attempt_at.is_(None))
+                        | (Document.next_attempt_at <= now),
+                    )
                     .order_by(Document.id)
                     .limit(limit)
                 )
@@ -69,11 +84,25 @@ class DocumentFetcher:
                         stats["skipped_budget"] += 1
                         db.commit()
                         break
-                    # Exhausted (404 etc.) — THIS doc is bad; the queue
-                    # behind it is not. Mark failed and keep draining.
-                    doc.fetch_status = "failed"
+                    # Exhausted (404 etc.) — the queue behind it is fine either
+                    # way. Fresh files are often not yet materialized on
+                    # the archives host, so climb the retry ladder before
+                    # declaring the URL dead.
+                    from datetime import timedelta
+
+                    doc.attempts = (doc.attempts or 0) + 1
                     doc.fetch_error = str(e)[:500]
-                    stats["failed"] += 1
+                    if doc.attempts >= MAX_ATTEMPTS:
+                        doc.fetch_status = "failed"
+                        stats["failed"] += 1
+                    else:
+                        delay = RETRY_DELAYS_MIN[doc.attempts - 1]
+                        doc.next_attempt_at = (
+                            datetime.now(timezone.utc) + timedelta(minutes=delay)
+                        )
+                        stats["retried"] += 1
+                        log.info("doc_retry_scheduled", doc_id=doc_id,
+                                 attempt=doc.attempts, retry_in_min=delay)
                     db.commit()
                     continue
                 except Exception as e:

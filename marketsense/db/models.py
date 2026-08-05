@@ -142,6 +142,12 @@ class Document(Base):
     fetch_status: Mapped[str] = mapped_column(String(16), default="pending")
     # pending | fetched | failed | skipped
     fetch_error: Mapped[str | None] = mapped_column(Text)
+    # Soak finding 2026-08-05 (#3): the archives host is EVENTUALLY
+    # CONSISTENT — a freshly-broadcast XBRL 404s for the first few minutes
+    # after its RSS item appears. So a 404 gets a bounded retry ladder
+    # (attempts + next_attempt_at) instead of an instant permanent fail.
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     observed_at: Mapped[datetime] = _observed_at()
 
 

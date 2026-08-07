@@ -94,7 +94,7 @@ class IngestSupervisor:
 
             _record_run("a1_poller", self.poller.run_pass)
             _record_run("a2_classifier",
-                        lambda: {"processed": self.a2.drain(max_events=200)})
+                        lambda: {"processed": self.a2.drain(max_events=1000)})
 
             if now - self._last_doc_drain > DOC_DRAIN_EVERY:
                 self._last_doc_drain = now

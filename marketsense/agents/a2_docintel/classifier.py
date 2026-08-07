@@ -52,9 +52,13 @@ log = get_logger("a2")
 # CIRP → litigation, "SEBI (LODR)…order received" ≠ enforcement, CP =
 # debt_raise. NOTE: fixes derived from eval-set misses, so the same-set
 # re-score is diagnostic; the confirmation number comes from eval set 2.
+# v5 (2026-08-08, set-2 driven): Daily_Buyback feed = daily PROGRESS
+# reports at m2 routine (was m6 — largest Spearman drag); SEBI-regulation
+# citations no longer fire regulatory_action without an enforcement
+# marker; record-date notices de-routined so dividend announcements score.
 # Each bump makes the consumer reclassify; prior-version rows remain
 # (append-only history).
-MODEL_VERSION = "a2-v4-rules+triage"
+MODEL_VERSION = "a2-v5-rules+triage"
 
 # Rule hits at or above this confidence skip the model entirely.
 RULE_FINAL_CONFIDENCE = 0.75

@@ -77,7 +77,10 @@ _ROUTINE = [
     (_r(r"newspaper (publication|advertisement)|copies of newspaper"), "newspaper_ad"),
     (_r(r"regulation 74 ?\(5\)|74\(5\) of sebi"), "reg74_certificate"),
     (_r(r"(analyst|institutional investor)s? meet|con\.? ?call|earnings call|investor presentation"), "investor_meet"),
-    (_r(r"book closure|record date"), "record_date"),
+    # NB: "record date / book closure" is deliberately NOT routine — those
+    # notices usually announce the dividend/bonus they set the date for
+    # (set-2 eval: two dividend announcements were swallowed as routine).
+    # The dividend rule below catches them; bare date notices go to the LLM.
     (_r(r"loss of share certificate|duplicate share certificate|issue of duplicate"), "share_certificate"),
     # An INTIMATION of a board meeting (usually "to consider and approve the
     # financial results") is not the results — without this line the body
@@ -184,7 +187,11 @@ _FEED_CATEGORY = {
     # Reg 31 is the ENCUMBRANCE disclosure regulation — eval miss class of
     # 2026-08-08 (6 rows): it was mapped to insider_trade.
     "sast_reg31": ("pledge_creation_release", 4, -0.3, 0.85, False),
-    "buyback": ("dividend_bonus_split_buyback", 5, 0.5, 0.9, False),
+    # Daily_Buyback.xml carries DAILY PROGRESS reports of ongoing buybacks,
+    # not buyback announcements — m2 routine (set-2 eval: 7 rows at m6 were
+    # the single largest Spearman drag). The announcement itself arrives via
+    # the announcements feed and scores through the buyback text rule.
+    "buyback": ("dividend_bonus_split_buyback", 2, 0.2, 0.9, True),
     "offer_documents": ("fundraise", 4, 0.1, 0.7, False),
     "corporate_actions": ("dividend_bonus_split_buyback", 3, 0.3, 0.7, False),
     # periodic/structural disclosures — routine, no LLM, ever
@@ -220,8 +227,16 @@ FEED_AUTHORITATIVE = {
     "board_meetings", "circulars", "shareholding_pattern", "related_party",
     "secretarial_compliance", "investor_complaints", "share_transfers",
     "brsr", "unitholding_patterns", "corporate_governance", "voting_results",
-    "annual_reports",
+    "annual_reports", "buyback",
 }
+
+# A SEBI-regulation CITATION ("under SEBI (Prohibition of Insider Trading)
+# Regulations…") is how half of routine compliance prose starts — it is not
+# enforcement. Set-2 eval: a trading-code notice and a shareholder letter
+# both drew regulatory_action m7 from citation text alone.
+_REG_CITATION = _r(r"sebi \(")
+_REG_ENFORCEMENT = _r(r"order (passed|dated)|final order|interim order|penalt|"
+                      r"show.?cause|search|raid|investigation|debar")
 
 
 def _auditor_qualifier(hit: RuleHit, text: str) -> RuleHit:
@@ -233,6 +248,17 @@ def _auditor_qualifier(hit: RuleHit, text: str) -> RuleHit:
     if _NON_STATUTORY_AUDITOR.search(text) and not _STATUTORY_AUDITOR.search(text):
         return RuleHit("management_change", 3, -0.1, hit.confidence,
                        rule=hit.rule + "|non_statutory_auditor")
+    return hit
+
+
+def _regulatory_qualifier(hit: RuleHit, text: str) -> RuleHit | None:
+    """Kill regulatory_action hits that come from regulation CITATIONS
+    ('SEBI (…) Regulations') with no independent enforcement marker.
+    Returns None to drop the hit entirely (other rules may still apply)."""
+    if hit.category != "regulatory_action":
+        return hit
+    if _REG_CITATION.search(text) and not _REG_ENFORCEMENT.search(text):
+        return None
     return hit
 
 
@@ -258,6 +284,9 @@ def classify_by_rules(feed: str, subject: str | None, description: str | None) -
         if pat.search(text):
             hit = _auditor_qualifier(
                 RuleHit(cat, mat, sent, conf, rule=f"pattern:{pat.pattern[:40]}"), text)
+            hit = _regulatory_qualifier(hit, text)
+            if hit is None:
+                continue
             if best is None or hit.materiality > best.materiality:
                 best = hit
     if best:

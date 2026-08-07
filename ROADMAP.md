@@ -15,7 +15,17 @@ The ingest + API processes stay running as the production baseline.
   corporate actions / shareholding JSON APIs are enrichment, not gaps — RSS
   covers them live; extend `backfill.py` per-endpoint as Phase 3 needs them.
 
-**Phase 2 — Document intelligence (BUILT 2026-08-07, gate pending labels)**
+**Phase 2 — GATE PASSED 2026-08-08 (provisional).** v5: set-1 98%/0.904,
+disjoint set-2 95%/0.744 (cleanest held-out number: 94% accuracy on set 2
+before any set-2-driven fix). Full verdict + caveats:
+`evaluation/reports/phase2-gate-verdict.md`. Labels are Claude-assigned
+(user-delegated; revisable — any edit to eval_set*.csv re-scores via
+`score_eval.py [csv]`). Residuals: KMP-change metadata needs PDF pull for
+materiality; Haiku materiality calibration on personnel changes; local
+qwen tier is effectively decorative at 0.16 tok/s on this hardware.
+Phase 3 (A3 fundamentals / A4 technicals / A5 flow) is clear to start.
+
+**Phase 2 build history (superseded):**
 Shipped: taxonomy + rule layer with hard floors, Ollama-first strict-JSON
 classifier (qwen2.5:3b) with Claude fallback + rules-only degradation, bus
 consumer at ≤200/cycle draining the 12.7k backlog live, PDF extraction on the

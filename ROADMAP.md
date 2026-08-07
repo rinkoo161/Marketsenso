@@ -15,16 +15,22 @@ The ingest + API processes stay running as the production baseline.
   corporate actions / shareholding JSON APIs are enrichment, not gaps — RSS
   covers them live; extend `backfill.py` per-endpoint as Phase 3 needs them.
 
-**Phase 2 — Document intelligence (next)**
-- A2 consumer over `filing.received` (bus.Consumer is ready for it).
-- Metadata-first classification: deterministic router (auditor resignation →
-  materiality ≥9 etc.) → local Ollama triage (user chose local-first) → strong
-  model only above the materiality bar. Strict JSON schema, cached by document
-  sha256 (Document.sha256 is already content-addressed for this).
-- pdfplumber+Tesseract extraction (`pip install -e ".[docintel]"`).
-- 100-filing hand-labelled held-out set; gate: ≥85% category accuracy, ≥0.7
-  materiality correlation. If the local model misses the gate, that is data —
-  revisit the provider decision with the eval numbers, not opinion.
+**Phase 2 — Document intelligence (BUILT 2026-08-07, gate pending labels)**
+Shipped: taxonomy + rule layer with hard floors, Ollama-first strict-JSON
+classifier (qwen2.5:3b) with Claude fallback + rules-only degradation, bus
+consumer at ≤200/cycle draining the 12.7k backlog live, PDF extraction on the
+thin-metadata path, eval harness. Remaining to close the phase gate:
+- Backlog classification completing in the background (check:
+  `select count(*) from filing_classifications`).
+- **USER ACTION: label the eval set.** Once the backlog is done, run
+  `.venv/bin/python evaluation/build_eval_set.py`, hand-fill the two label
+  columns in `evaluation/eval_set.csv` (categories from taxonomy.CATEGORIES,
+  materiality 0-10), then `.venv/bin/python evaluation/score_eval.py`.
+  Gate: ≥85% category accuracy, ≥0.7 materiality Spearman. If qwen2.5:3b
+  misses it, that is data — revisit the provider decision with numbers.
+- OCR is disabled until `brew install tesseract` (scans degrade gracefully).
+- Watch-item from first live batch: 'ma' category count looks high — check
+  for over-matching of routine "scheme of arrangement" mentions during eval.
 
 **Phase 3 — Analysis (A3 fundamentals / A4 technicals / A5 flow)**
 - A3: XBRL parsing from result filings (Document rows with .xml already being

@@ -343,6 +343,61 @@ class Score(Base):
     )
 
 
+# ========================================================= phase 3: flow
+
+class MarketFlow(Base):
+    """FII/DII daily buy/sell (market-level context, ₹ crore)."""
+
+    __tablename__ = "market_flow"
+
+    day: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    category: Mapped[str] = mapped_column(String(8), primary_key=True)  # FII|DII
+    buy_value: Mapped[float | None]
+    sell_value: Mapped[float | None]
+    net_value: Mapped[float | None]
+    observed_at: Mapped[datetime] = _observed_at()
+
+
+class LargeDeal(Base):
+    """Bulk + block deals (daily CSVs)."""
+
+    __tablename__ = "large_deals"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    day: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    client: Mapped[str] = mapped_column(Text)
+    side: Mapped[str] = mapped_column(String(4))       # BUY | SELL
+    qty: Mapped[float | None]
+    price: Mapped[float | None]
+    kind: Mapped[str] = mapped_column(String(8))       # bulk | block
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        UniqueConstraint("day", "symbol", "client", "side", "qty", "kind",
+                         name="uq_large_deal"),
+    )
+
+
+class Surveillance(Base):
+    """ASM/GSM membership snapshots — append-only by as_of date so A6 can
+    ask 'was it under ASM on date X' honestly."""
+
+    __tablename__ = "surveillance"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    framework: Mapped[str] = mapped_column(String(8))   # asm_lt | asm_st | gsm
+    stage: Mapped[str | None] = mapped_column(String(16))
+    detail: Mapped[str | None] = mapped_column(Text)
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        UniqueConstraint("as_of", "symbol", "framework", name="uq_surv"),
+    )
+
+
 # ============================================================ ops tables
 
 class AgentRun(Base):

@@ -168,8 +168,16 @@ class IngestSupervisor:
 
             r4 = load_all(session)
             r5 = a3_score_all(session)
+            # A5: flow inputs + scores
+            from marketsense.agents.a5_flow.engine import (
+                score_all as a5_score_all,
+            )
+            from marketsense.agents.a5_flow.ingest import ingest_all
+
+            r6 = ingest_all(session, self._client)
+            r7 = a5_score_all(session)
             return {"prices": r1, "indices": r2, "a4": r3,
-                    "a3_load": r4, "a3": r5}
+                    "a3_load": r4, "a3": r5, "a5_ingest": r6, "a5": r7}
 
         _record_run("a4_eod", run)
 

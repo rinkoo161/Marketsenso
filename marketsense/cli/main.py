@@ -187,6 +187,20 @@ def master_sync() -> None:
         typer.echo(str(sync_change_histories(db, client)))
 
 
+@app.command(name="backfill-financials")
+def backfill_financials(
+    top: int = typer.Option(500, help="Top-N symbols by median turnover"),
+    quarters: int = typer.Option(8, help="Quarters of history"),
+) -> None:
+    """Historical quarterly results (classic + integrated-filing eras)."""
+    from marketsense.agents.a3_fundamental.backfill import backfill_universe
+
+    session, client = _init()
+    setup_logging("INFO")
+    typer.echo(str(backfill_universe(session, client, top=top,
+                                     quarters_back=quarters)))
+
+
 @app.command()
 def serve(port: int = typer.Option(None)) -> None:
     """Start the health/metrics API."""

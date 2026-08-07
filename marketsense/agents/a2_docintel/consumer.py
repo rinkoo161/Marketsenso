@@ -18,6 +18,11 @@ def make_consumer(session_factory) -> Consumer:
     def handle(evt: Outbox) -> None:
         from datetime import datetime, timedelta, timezone
 
+        from sqlalchemy import func, select
+
+        from marketsense.core.config import settings
+        from marketsense.db.models import ConsumerOffset
+
         filing_id = evt.payload.get("filing_id")
         if not filing_id:
             return
@@ -32,7 +37,18 @@ def make_consumer(session_factory) -> Consumer:
             # 2 days, so a day-scale window put two-thirds of the backlog
             # back on the 40s/call LLM path it was meant to avoid.
             fresh = filing.observed_at >= datetime.now(timezone.utc) - timedelta(hours=6)
-            row = classify_filing(db, filing, allow_llm=fresh)
+            # Deep queue → online-first (the 45s local model would turn a
+            # results-wave burst into hours of lag; fallback-on-error
+            # never notices slowness, so the flip is explicit).
+            lag = 0
+            if fresh:
+                head = db.scalar(select(func.max(Outbox.id))
+                                 .where(Outbox.topic == "filing.received")) or 0
+                acked = db.get(ConsumerOffset, ("a2", "filing.received"))
+                lag = head - (acked.last_acked_id if acked else 0)
+            row = classify_filing(
+                db, filing, allow_llm=fresh,
+                prefer_online=lag > settings().llm_queue_flip)
             db.commit()
             if row is not None and row.materiality >= 7:
                 log.info("high_materiality", filing_id=filing_id,

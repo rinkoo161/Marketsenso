@@ -35,8 +35,12 @@ class Settings(BaseSettings):
     # storage
     data_dir: Path = Path("~/.marketsense")
 
-    # LLM (Phase 2; registered now so the config surface is stable)
-    ai_engine: str = "local"  # local | online | auto | off
+    # LLM. auto = Ollama first, Claude Haiku fallback — user decision
+    # 2026-08-07 after measuring 45s/call local under memory pressure.
+    ai_engine: str = "auto"  # local | online | auto | off
+    # Fresh-queue depth above which auto flips to online-first (the local
+    # model's failure mode is slowness, which fallback-on-error never sees).
+    llm_queue_flip: int = 25
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:3b"
 

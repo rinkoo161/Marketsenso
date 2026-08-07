@@ -80,7 +80,8 @@ Reply with ONLY a JSON object:
 Quote entity values exactly as written in the text. Do not compute or convert numbers."""
 
 
-def classify_filing(db, filing: Filing, allow_llm: bool = True) -> FilingClassification | None:
+def classify_filing(db, filing: Filing, allow_llm: bool = True,
+                    prefer_online: bool = False) -> FilingClassification | None:
     """Classify one filing. Returns the row, or None if already done at
     this MODEL_VERSION. Commits are the caller's job.
 
@@ -133,7 +134,8 @@ def classify_filing(db, filing: Filing, allow_llm: bool = True) -> FilingClassif
                 model_version=MODEL_VERSION, event_at=filing.event_at,
             )
     else:
-        row = _classify_with_model(filing, subject, description, hit, db=db)
+        row = _classify_with_model(filing, subject, description, hit, db=db,
+                                   prefer_online=prefer_online)
 
     db.add(row)
     db.flush()
@@ -157,7 +159,7 @@ def classify_filing(db, filing: Filing, allow_llm: bool = True) -> FilingClassif
 
 
 def _classify_with_model(filing: Filing, subject: str, description: str, hit,
-                         db=None):
+                         db=None, prefer_online: bool = False):
     company = (filing.raw or {}).get("company_title") or filing.symbol or "unknown"
     text = description[:1500]
     # Metadata too thin to judge → pull the PDF's opening pages. This is
@@ -173,7 +175,7 @@ def _classify_with_model(filing: Filing, subject: str, description: str, hit,
         text=text or "(no further text)",
         categories="\n".join(f'  "{c}"' for c in CATEGORIES),
     )
-    result = classify_json(prompt, _SCHEMA)
+    result = classify_json(prompt, _SCHEMA, prefer_online=prefer_online)
 
     if result is None:
         # No usable model → the rule hit (if any) or an honest low-confidence

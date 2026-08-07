@@ -22,7 +22,7 @@ def _filing(db, subject, description="", feed="announcements", n=[0]):
 def test_rules_final_no_llm_call(db_factory, monkeypatch):
     called = []
     monkeypatch.setattr(clf, "classify_json",
-                        lambda *a: called.append(1) or None)
+                        lambda *a, **k: called.append(1) or None)
     with db_factory() as db:
         f = _filing(db, "Declaration of NAV", "Declaration of NAV")
         row = clf.classify_filing(db, f)
@@ -32,7 +32,7 @@ def test_rules_final_no_llm_call(db_factory, monkeypatch):
 
 
 def test_classification_cached_per_model_version(db_factory, monkeypatch):
-    monkeypatch.setattr(clf, "classify_json", lambda *a: None)
+    monkeypatch.setattr(clf, "classify_json", lambda *a, **k: None)
     with db_factory() as db:
         f = _filing(db, "Declaration of NAV", "Declaration of NAV")
         assert clf.classify_filing(db, f) is not None
@@ -43,7 +43,7 @@ def test_classification_cached_per_model_version(db_factory, monkeypatch):
 
 def test_model_cannot_undercut_floor(db_factory, monkeypatch):
     # model says auditor resignation is materiality 1 — floor wins
-    monkeypatch.setattr(clf, "classify_json", lambda *a: (
+    monkeypatch.setattr(clf, "classify_json", lambda *a, **k: (
         {"category": "auditor_resignation", "materiality": 1, "sentiment": -0.5,
          "confidence": 0.99, "summary": "auditor left", "entities": {}}, "local"))
     with db_factory() as db:
@@ -56,7 +56,7 @@ def test_model_cannot_undercut_floor(db_factory, monkeypatch):
 
 
 def test_llm_unavailable_degrades_confidence_not_neutral(db_factory, monkeypatch):
-    monkeypatch.setattr(clf, "classify_json", lambda *a: None)
+    monkeypatch.setattr(clf, "classify_json", lambda *a, **k: None)
     with db_factory() as db:
         f = _filing(db, "Miscellaneous", "no rule matches this text either")
         row = clf.classify_filing(db, f)
@@ -67,7 +67,7 @@ def test_llm_unavailable_degrades_confidence_not_neutral(db_factory, monkeypatch
 
 
 def test_emits_filing_classified_event(db_factory, monkeypatch):
-    monkeypatch.setattr(clf, "classify_json", lambda *a: None)
+    monkeypatch.setattr(clf, "classify_json", lambda *a, **k: None)
     with db_factory() as db:
         f = _filing(db, "Declaration of NAV", "Declaration of NAV")
         row = clf.classify_filing(db, f)

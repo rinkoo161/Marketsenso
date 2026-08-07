@@ -50,10 +50,29 @@ def _ollama_generate(prompt: str) -> str:
     return r.json().get("response", "")
 
 
-def _anthropic_generate(prompt: str) -> str:
+def _anthropic_key() -> str | None:
+    """ANTHROPIC_API_KEY from the environment, else the user's existing
+    key in ltp-monitor's config (same machine, same owner — decided
+    2026-08-07 with the auto-engine choice; avoids a second plaintext
+    copy of the key on disk)."""
     key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        return key
+    try:
+        import json
+        from pathlib import Path
+
+        cfg = json.loads(
+            (Path.home() / ".ltp-monitor" / "config.json").read_text())
+        return cfg.get("anthropic_api_key") or None
+    except Exception:
+        return None
+
+
+def _anthropic_generate(prompt: str) -> str:
+    key = _anthropic_key()
     if not key:
-        raise LLMUnavailable("no ANTHROPIC_API_KEY")
+        raise LLMUnavailable("no ANTHROPIC_API_KEY (env or ltp-monitor config)")
     r = httpx.post(
         "https://api.anthropic.com/v1/messages",
         headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
@@ -65,25 +84,40 @@ def _anthropic_generate(prompt: str) -> str:
     return r.json()["content"][0]["text"]
 
 
-def _generate(prompt: str) -> tuple[str, str]:
+def _generate(prompt: str, prefer_online: bool = False) -> tuple[str, str]:
     """Returns (text, engine_used). Raises LLMUnavailable when every
-    engine allowed by config is down."""
+    engine allowed by config is down.
+
+    prefer_online flips the auto order to online-first: the consumer sets
+    it when its queue is deep, because a plain fallback only fires on
+    ERRORS while the local model's failure mode here is SLOWNESS (45s/call
+    at 0.16 tok/s under memory pressure) — a deep queue served locally
+    means hours of classification lag, decided against 2026-08-07."""
     engine = settings().ai_engine
     if engine == "off":
         raise LLMUnavailable("ai_engine=off")
     errors = []
-    if engine in ("local", "auto"):
+
+    def try_local():
+        return _ollama_generate(prompt), "local"
+
+    def try_online():
+        return _anthropic_generate(prompt), "online"
+
+    if engine == "local":
+        order = [try_local]
+    elif engine == "online":
+        order = [try_online]
+    elif prefer_online:
+        order = [try_online, try_local]
+    else:
+        order = [try_local, try_online]
+
+    for attempt in order:
         try:
-            return _ollama_generate(prompt), "local"
+            return attempt()
         except Exception as e:
-            errors.append(f"local: {e}")
-            if engine == "local":
-                raise LLMUnavailable("; ".join(errors)) from e
-    if engine in ("online", "auto"):
-        try:
-            return _anthropic_generate(prompt), "online"
-        except Exception as e:
-            errors.append(f"online: {e}")
+            errors.append(f"{attempt.__name__}: {e}")
     raise LLMUnavailable("; ".join(errors))
 
 
@@ -128,12 +162,13 @@ def _validate(obj: dict, schema: dict) -> str | None:
     return None
 
 
-def classify_json(prompt: str, schema: dict) -> tuple[dict, str] | None:
+def classify_json(prompt: str, schema: dict,
+                  prefer_online: bool = False) -> tuple[dict, str] | None:
     """One validated-JSON completion. Returns (obj, engine) or None —
     None means 'no usable model output', and the caller must have a
     deterministic fallback. Never raises for model trouble."""
     try:
-        text, engine = _generate(prompt)
+        text, engine = _generate(prompt, prefer_online=prefer_online)
     except LLMUnavailable as e:
         log.warning("llm_unavailable", error=str(e)[:200])
         return None

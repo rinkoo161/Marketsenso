@@ -104,7 +104,7 @@ def classify_filing(db, filing: Filing) -> FilingClassification | None:
             model_version=MODEL_VERSION, event_at=filing.event_at,
         )
     else:
-        row = _classify_with_model(filing, subject, description, hit)
+        row = _classify_with_model(filing, subject, description, hit, db=db)
 
     db.add(row)
     db.flush()
@@ -127,11 +127,21 @@ def classify_filing(db, filing: Filing) -> FilingClassification | None:
     return row
 
 
-def _classify_with_model(filing: Filing, subject: str, description: str, hit):
+def _classify_with_model(filing: Filing, subject: str, description: str, hit,
+                         db=None):
     company = (filing.raw or {}).get("company_title") or filing.symbol or "unknown"
+    text = description[:1500]
+    # Metadata too thin to judge → pull the PDF's opening pages. This is
+    # the ONLY path that touches documents; ~90% of filings never get here.
+    if db is not None and len(subject) + len(text) < 120:
+        from marketsense.agents.a2_docintel.extract import text_for_filing
+
+        pdf_text = text_for_filing(db, filing)
+        if pdf_text:
+            text = (text + "\n" + pdf_text)[:1500]
     prompt = _PROMPT.format(
         company=company, feed=filing.feed, subject=subject[:300],
-        text=description[:1500] or "(no further text)",
+        text=text or "(no further text)",
         categories="\n".join(f'  "{c}"' for c in CATEGORIES),
     )
     result = classify_json(prompt, _SCHEMA)

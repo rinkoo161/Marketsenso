@@ -42,6 +42,17 @@ thin-metadata path, eval harness. Remaining to close the phase gate:
 - Watch-item from first live batch: 'ma' category count looks high — check
   for over-matching of routine "scheme of arrangement" mentions during eval.
 
+**Phase 4 progress (2026-08-08):** A6 shipped (2,494 assessed / 237
+hard-blocked, stated reasons, honesty ledger). A7 shipped (483 signals,
+7 versioned profiles, deterministic evidence-traced theses, hysteresis;
+suppressed-by-A6 works). Walk-forward backtest harness shipped
+(pit_quality=reconstructed on its face; flow/surveillance honestly not
+replayable). Interim result (44 obs, 22 rebalances, small-n): buy stance
++3.65% 12w excess vs Nifty 500; accumulate band (60-70 conviction)
+consistently NEGATIVE — hypothesis: threshold noise; re-examine stance
+bands after the full run. Full run + reconciliation gate + A3 re-score
+queued on the finhist backfill (~08:30 IST ETA, 105/500 done, 0 errors).
+
 **Phase 3 — Analysis (A3 fundamentals / A4 technicals / A5 flow)**
 - A3: XBRL parsing from result filings (Document rows with .xml already being
   archived by A1 — the corpus is accumulating now). Rolling 8+ quarter /

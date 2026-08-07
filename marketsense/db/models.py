@@ -242,6 +242,107 @@ class DeadLetter(Base):
     )
 
 
+# ======================================================== phase 3: prices
+
+class PriceDaily(Base):
+    """One row per security per trading day. ~3.4M rows for 5y × 2.7k
+    symbols — plain btree-indexed table per the Phase-1 decision (add
+    partitioning only when a query is measured slow).
+
+    source: 'bhavcopy' (NSE official EOD, includes delivery) or 'kite'
+    (historical backfill). Bhavcopy wins on conflict — it is the
+    exchange's own record."""
+
+    __tablename__ = "price_daily"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32))
+    security_id: Mapped[int | None] = mapped_column(ForeignKey("securities.id"))
+    trade_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    series: Mapped[str | None] = mapped_column(String(8))
+    open: Mapped[float | None]
+    high: Mapped[float | None]
+    low: Mapped[float | None]
+    close: Mapped[float | None]
+    prev_close: Mapped[float | None]
+    vwap: Mapped[float | None]
+    volume: Mapped[float | None]
+    turnover: Mapped[float | None]
+    trades: Mapped[float | None]
+    delivery_qty: Mapped[float | None]
+    delivery_pct: Mapped[float | None]
+    source: Mapped[str] = mapped_column(String(12), default="bhavcopy")
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        UniqueConstraint("symbol", "trade_date", name="uq_price_symbol_date"),
+        Index("ix_price_security_date", "security_id", "trade_date"),
+    )
+
+
+# ==================================================== phase 3: financials
+
+class FinancialsQuarterly(Base):
+    """One reported quarter per company per basis. `raw` keeps EVERY
+    extracted XBRL fact — the named columns are the analysis workhorses,
+    but §10 traceability means never throwing source facts away.
+    filing_id ties each row to the disclosure it came from."""
+
+    __tablename__ = "financials_quarterly"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    security_id: Mapped[int | None] = mapped_column(ForeignKey("securities.id"), index=True)
+    symbol: Mapped[str | None] = mapped_column(String(32), index=True)
+    filing_id: Mapped[int | None] = mapped_column(ForeignKey("filings.id"))
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    basis: Mapped[str] = mapped_column(String(16))   # consolidated | standalone
+    audited: Mapped[bool | None]
+    revenue: Mapped[float | None]
+    other_income: Mapped[float | None]
+    total_income: Mapped[float | None]
+    expenses: Mapped[float | None]
+    finance_costs: Mapped[float | None]
+    depreciation: Mapped[float | None]
+    pbt: Mapped[float | None]
+    tax: Mapped[float | None]
+    pat: Mapped[float | None]
+    eps_basic: Mapped[float | None]
+    raw: Mapped[dict | None] = mapped_column(JSONB)
+    event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        UniqueConstraint("symbol", "period_end", "basis",
+                         name="uq_fin_symbol_period_basis"),
+    )
+
+
+# ======================================================= phase 3: scores
+
+class Score(Base):
+    """§5: every score is append-only and versioned. One row per agent
+    per symbol per computation; `components` carries the full evidence
+    breakdown so A7 theses can cite exact inputs."""
+
+    __tablename__ = "scores"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    agent: Mapped[str] = mapped_column(String(16), index=True)   # a3|a4|a5
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    security_id: Mapped[int | None] = mapped_column(ForeignKey("securities.id"))
+    score: Mapped[float]                                          # 0-100
+    label: Mapped[str | None] = mapped_column(String(32))         # e.g. trend tag
+    confidence: Mapped[float | None]
+    components: Mapped[dict | None] = mapped_column(JSONB)
+    model_version: Mapped[str] = mapped_column(String(64))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        Index("ix_scores_agent_symbol_asof", "agent", "symbol", "as_of"),
+    )
+
+
 # ============================================================ ops tables
 
 class AgentRun(Base):

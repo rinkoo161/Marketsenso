@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 from marketsense.agents.a1_ingestion.documents import DocumentFetcher
 from marketsense.agents.a1_ingestion.poller import FeedPoller
+from marketsense.core.clock import calendar
 from marketsense.core.logging import get_logger, setup_logging
 from marketsense.db.engine import session
 from marketsense.db.models import AgentRun
@@ -104,6 +105,8 @@ class IngestSupervisor:
                 self._last_catchup = now
                 _record_run("a1_catchup", self._catchup)
 
+            self._maybe_eod(now)
+
             time.sleep(LOOP_SLEEP)
 
         log.info("ingest_stopped")
@@ -124,6 +127,42 @@ class IngestSupervisor:
         from marketsense.agents.a1_ingestion.backfill import backfill_announcements
 
         return backfill_announcements(session, self._client, days=2)
+
+    def _maybe_eod(self, now_mono: float) -> None:
+        """Once per trading day after 18:45 IST: bhavcopy + indices +
+        A4 scores. NSE publishes sec_bhavdata_full around 18:30; 18:45
+        leaves margin, and ingest_day is idempotent if re-run."""
+        from datetime import date
+
+        from marketsense.core.clock import now_ist
+
+        ist = now_ist()
+        today = ist.date()
+        if (ist.hour, ist.minute) < (18, 45):
+            return
+        if not calendar.is_trading_day(today):
+            return
+        if getattr(self, "_eod_done_for", None) == today:
+            return
+
+        def run() -> dict:
+            from marketsense.agents.a4_technical.bhavcopy import (
+                ingest_day,
+                ingest_indices_day,
+            )
+            from marketsense.agents.a4_technical.engine import score_all
+
+            r1 = ingest_day(session, self._client, today)
+            r2 = ingest_indices_day(session, self._client, today)
+            if not r1.get("kept"):
+                # file not up yet — leave _eod_done_for unset so the next
+                # loop pass retries
+                return {"deferred": r1}
+            self._eod_done_for = today
+            r3 = score_all(session)
+            return {"prices": r1, "indices": r2, "scores": r3}
+
+        _record_run("a4_eod", run)
 
 
 def main() -> None:

@@ -1,1 +1,101 @@
 filing_id,feed,symbol,subject,description,label_category,label_materiality
+3,financial_results,VSTTILLERS,V.S.T Tillers Tractors Limited,RELATING TO:Third Quarter |AUDITED/UNAUDITED:Unaudited |CUMULATIVE/NON-CUMULATIVE:Non-Cumulative |CONSOLIDATED/NON-CONSOLIDATED:Consolidated |IND AS/ NON IND AS:Ind-AS New |PERIOD:Quarterly |PERIOD ENDED: 31-Dec-2024,results,5
+4,financial_results,VSTTILLERS,V.S.T Tillers Tractors Limited,RELATING TO:Third Quarter |AUDITED/UNAUDITED:Unaudited |CUMULATIVE/NON-CUMULATIVE:Non-Cumulative |CONSOLIDATED/NON-CONSOLIDATED:Non-Consolidated |IND AS/ NON IND AS:Ind-AS New |PERIOD:Quarterly |PERIOD ENDED: 31-Dec-2024,results,5
+5,corporate_actions,,SWAN CORP LIMITED - Ex-Date: 28-Aug-2026,SERIES:EQ |PURPOSE:DIVIDEND - RE 0.15 PER SHARE |FACE VALUE: |RECORD DATE:28-Aug-2026 |BOOK CLOSURE START DATE:- |BOOK CLOSURE END DATE:-,dividend_bonus_split_buyback,3
+6,sast_reg29,DCMSIL29,DCM Shriram International Limited,NAME(S)OF THE ACQUIRER AND ITS(PAC) : Urvashi Tilakdhar,insider_trade,3
+7,sast_reg29,DSFCL29,DCM Shriram Fine Chemicals Limited,NAME(S)OF THE ACQUIRER AND ITS(PAC) : Madhav Bansidhar Shriram,insider_trade,3
+8,sast_reg29,GRANULES1,Granules India Limited,NAME(S)OF THE ACQUIRER AND ITS(PAC) : Life Insurance Corporation of India,insider_trade,3
+9,sast_reg29,DCMSRIND,Dcm Shriram Industries Limited,NAME(S)OF THE ACQUIRER AND ITS(PAC) : Alok Bansidhar Shriram,insider_trade,3
+10,sast_reg29,SATIN,Satin Creditcare Network Limited,NAME(S)OF THE ACQUIRER AND ITS(PAC) : Trishashna Holdings & Investments Private ltd,insider_trade,3
+11,sast_reg29,DISCLOSURE,GTPL Hathway Limited,NAME(S)OF THE ACQUIRER AND ITS(PAC) : SBICAP Trustee Company Limited,insider_trade,3
+12,sast_reg29,DCMSRIND29,Dcm Shriram Industries Limited,NAME(S)OF THE ACQUIRER AND ITS(PAC) : Shri. Madhav Bansidhar Shriram,insider_trade,3
+25,sast_reg31,ACI,Archean Chemical Industries Limited,NAME OF PROMOTER(S) OR PACS WITH HIM : Chemikas  Speciality LLP,pledge_creation_release,4
+26,sast_reg31,THEMISMED,Themis Medicare Limited,NAME OF PROMOTER(S) OR PACS WITH HIM : VIVIDHMARGI INVESTMENTS PRIVATE LIMITED,pledge_creation_release,4
+27,sast_reg31,MEDPLUS,Medplus Health Services Limited,NAME OF PROMOTER(S) OR PACS WITH HIM : Agilemed Investment Pvt Ltd,pledge_creation_release,4
+28,sast_reg31,AJANTPHARM,Ajanta Pharma Limited,"NAME OF PROMOTER(S) OR PACS WITH HIM : Aayush Agrawal, trustee Aayush Agrawal Trust",pledge_creation_release,4
+29,sast_reg31,AFCONS,Afcons Infrastructure Limited,NAME OF PROMOTER(S) OR PACS WITH HIM : Goswami Infratech Private Limited,pledge_creation_release,4
+30,sast_reg31,CAMLINFINE,Camlin Fine Sciences Limited,NAME OF PROMOTER(S) OR PACS WITH HIM : Mr. Ashish Subhash Dandekar,pledge_creation_release,4
+31,sast_reg31,NCLIND,NCL Industries Limited,NAME OF PROMOTER(S) OR PACS WITH HIM : Roopa Kalidindi,pledge_creation_release,4
+45,encumbrance,OMAXE,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : 1. M/s Dream Home Developers Pvt. Ltd.,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : 1. M/s Dream Home Developers Pvt. Ltd.,pledge_creation_release,5
+46,encumbrance,VEDL,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : FINSIDER INTERNATIONAL COMPANY LIMITED,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : FINSIDER INTERNATIONAL COMPANY LIMITED,pledge_creation_release,5
+47,encumbrance,OMAXE,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : 1. Rohtas Goel HUF,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : 1. Rohtas Goel HUF,pledge_creation_release,5
+48,encumbrance,OMAXE,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : 1. Mr. Rohtas Goel,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : 1. Mr. Rohtas Goel,pledge_creation_release,5
+49,encumbrance,,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : Future Capital Investment Private Limited,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : Future Capital Investment Private Limited,pledge_creation_release,5
+50,encumbrance,FEL,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : Central Departmental Stores Private Limited,NAME OF THE PROMOTER(S) / PACS WHOSE SHARES HAVE BEEN ENCUMBERED : Central Departmental Stores Private Limited,pledge_creation_release,5
+51,related_party,,Ballarpur Industries Limited,PERIOD END DATE : 30-SEP-2024,other,1
+52,related_party,,Ballarpur Industries Limited,PERIOD END DATE : 31-MAR-2024,other,1
+71,buyback,ATUL,Daily Buy-Back of equity shares,SUBJECT : Daily Buy-Back of equity shares,dividend_bonus_split_buyback,2
+72,buyback,ATUL,Daily Buy-Back of equity shares,SUBJECT : Daily Buy-Back of equity shares,dividend_bonus_split_buyback,2
+73,buyback,ATUL,Daily Buy-Back of equity shares,SUBJECT : Daily Buy-Back of equity shares,dividend_bonus_split_buyback,2
+74,buyback,ATUL,Daily Buy-Back of equity shares,SUBJECT : Daily Buy-Back of equity shares,dividend_bonus_split_buyback,2
+75,buyback,ATUL,Daily Buy-Back of equity shares,SUBJECT : Daily Buy-Back of equity shares,dividend_bonus_split_buyback,2
+76,buyback,ATUL,Daily Buy-Back of equity shares,SUBJECT : Daily Buy-Back of equity shares,dividend_bonus_split_buyback,2
+77,buyback,ATUL,Daily Buy-Back of equity shares,SUBJECT : Daily Buy-Back of equity shares,dividend_bonus_split_buyback,2
+111,annual_reports,MAZDOCK,Mazagon Dock Shipbuilders Limited,AS ON DATE : 04-AUG-26,other,2
+128,secretarial_compliance,GARUDA,Garuda Construction and Engineering Limited,"FINANCIAL YEAR : Apr-2024 to Mar-2025, SUBMISSION TYPE: Revision",other,1
+129,secretarial_compliance,SAGCEM,Sagar Cements Limited,"FINANCIAL YEAR : Apr-2025 to Mar-2026, SUBMISSION TYPE: Revision",other,1
+147,deviation_variation,FIDEL,Fidel Softech Limited,PERIOD END DATE : 31-DEC-2024,other,2
+148,deviation_variation,VASWANI,Vaswani Industries Limited,PERIOD END DATE : 31-DEC-2024,other,2
+204,share_transfers,MANAV,Manav Infra Projects Limited,PERIOD ENDED :31-MAR-2026,other,1
+205,share_transfers,GATECH,GACM Technologies Limited,PERIOD ENDED :31-MAR-2026,other,1
+255,unitholding_patterns,,Brookfield India Real Estate Trust,AS ON DATE : 30-JUN-2026,other,1
+256,unitholding_patterns,,Nxt-Infra Trust,AS ON DATE : 30-JUN-2026,other,1
+937,announcements,MARICO,Updates,"Please find enclosed the Information Update along with an earnings presentation on the un-audited consolidated financial results of the Company for the quarter ended June 30, 2026.",results,4
+941,announcements,CASTROLIND,Record Date,Castrol India Limited has informed the Exchange that Record date for the purpose of Interim Dividend is 11-Aug-2026.,dividend_bonus_split_buyback,4
+1874,announcements,BUTTERFLY,Outcome of Board Meeting,"Butterfly Gandhimathi Appliances Limited has submitted to the Exchange, the financial results for the period ended Jun 30, 2026.",results,5
+1880,announcements,ATHERENERG,Outcome of Board Meeting,"Ather Energy Limited has submitted to the Exchange, the financial results for the period ended Jun 30, 2026.",results,5
+2823,announcements,POLICYBZR,Analysts/Institutional Investor Meet/Con. Call Updates,"PB Fintech Limited has informed the Exchange about Schedule of earnings conference call for shareholders, investors and analyst on Wednesday, August 05, 2026, at 06:00 P.M. (IST)",other,1
+3772,investor_complaints,,Veritas Finance Limited,FOR QUARTER ENDING : 30-JUN-25,other,1
+3773,investor_complaints,,Latur Renewable Private Limited,FOR QUARTER ENDING : 30-JUN-25,other,1
+4761,insider_trading,QUESS,QUESS | Quess Corp Limited | Original | Regulation 7 (2) | IT_14019_WebXMLFile_20260805_152510674.xml | IT_14019_20260805_152510703_WEB.html | 5186 | 22310 | -,QUESS|Quess Corp Limited|Original|Regulation 7 (2)|IT_14019_WebXMLFile_20260805_152510674.xml|IT_14019_20260805_152510703_WEB.html|5186|22310|-,insider_trade,2
+4770,insider_trading,STLNETWORK,STLNETWORK | STL NETWORKS LIMITED | Original | Regulation 7 (2) | IT_25888_WebXMLFile_20260805_152843566.xml | IT_25888_20260805_152843590_WEB.html | 8019 | 28588 | -,STLNETWORK|STL NETWORKS LIMITED|Original|Regulation 7 (2)|IT_25888_WebXMLFile_20260805_152843566.xml|IT_25888_20260805_152843590_WEB.html|8019|28588|-,insider_trade,2
+5653,circulars,,Listing of further issues of securities,,other,1
+5654,circulars,,Listing of further issues of securities,,other,1
+5676,voting_results,BHEL,Bharat Heavy Electricals Limited,MEETING DATE : 05-AUG-2026,other,1
+5677,brsr,NHPC,NHPC Limited,ORIGINAL SUBMISSION DATE : 05-AUG-26 05.54.27.272700 PM,other,1
+5678,brsr,NTPCGREEN,NTPC Green Energy Limited,ORIGINAL SUBMISSION DATE : 05-AUG-26 05.19.12.121200 PM,other,1
+5702,insider_trading,AAATECH,AAATECH | AAA TECHNOLOGIES LIMITED | Original | Regulation 7 (2) | IT_18645_WebXMLFile_20260805_181144604.xml | IT_18645_20260805_181144637_WEB.html | 13784 | 41262 | -,AAATECH|AAA TECHNOLOGIES LIMITED|Original|Regulation 7 (2)|IT_18645_WebXMLFile_20260805_181144604.xml|IT_18645_20260805_181144637_WEB.html|13784|41262|-,insider_trade,2
+7497,integrated_financials,TARACHAND,Integrated Filing- Financials | Original,Integrated Filing- Financials|Original|,results,4
+7498,integrated_financials,TARACHAND,Integrated Filing- Financials | Original,Integrated Filing- Financials|Original|,results,4
+7499,integrated_financials,SUVEN,Integrated Filing- Financials | Original,Integrated Filing- Financials|Original|,results,4
+7500,integrated_financials,SUVEN,Integrated Filing- Financials | Revision,Integrated Filing- Financials|Revision|,results,4
+7529,board_meetings,ROHLTD,Board Meeting Intimation,Board Meeting Intimation |Meeting Date: 11-Aug-2026,other,1
+8469,board_meetings,,Board Meeting Intimation,Board Meeting Intimation |Meeting Date: 13-Aug-2026,other,1
+8471,insider_trading,AIMTRON,AIMTRON | Aimtron Electronics Limited | Original | Regulation 7 (2) | IT_22944_WebXMLFile_20260806_180131304.xml | IT_22944_20260806_180131327_WEB.html | 8280 | 28825 | -,AIMTRON|Aimtron Electronics Limited|Original|Regulation 7 (2)|IT_22944_WebXMLFile_20260806_180131304.xml|IT_22944_20260806_180131327_WEB.html|8280|28825|-,insider_trade,2
+9371,announcements,EIHOTEL01,Press Release,"EIH Limited has informed the Exchange regarding a press release dated August 06, 2026, titled ""Press Release on Unaudited Financial Results for the quarter ended 30th June 2026"". |SUBJECT: Press Release",results,4
+9372,integrated_financials,ENRIN,Integrated Filing- Financials | Original,Integrated Filing- Financials|Original|,results,4
+9373,integrated_financials,FINPIPE,Integrated Filing- Financials | Original,Integrated Filing- Financials|Original|,results,4
+9374,integrated_financials,FINPIPE,Integrated Filing- Financials | Original,Integrated Filing- Financials|Original|,results,4
+9515,annual_reports,TENNIND,Tenneco Clean Air India Limited,AS ON DATE : 06-AUG-26,other,2
+10309,announcements,BEML,Dividend,"BEML Limited has informed the Exchange that Board of Directors at its meeting held on August 07, 2026, recommended Final Dividend of Rs. 12.28 per equity share. |SUBJECT: Dividend",dividend_bonus_split_buyback,4
+10351,announcements,NIITLTD,Copy of Newspaper Publication,NIIT Limited has informed the Exchange about Copy of Newspaper Publication |SUBJECT: Copy of Newspaper Publication,other,1
+10407,annual_reports,DEEPINDS,Deep Industries Limited,AS ON DATE : 07-AUG-26,other,2
+11246,announcements,TURTLEMINT,General Updates,"With reference to Company s code of conduct to regulate, monitor and report trading by designated persons and their immediate relatives ( Insider Trading Code ) read with SEBI (Prohibition of Insider Trading) Regulations, 2015, please find enclosed herewith the report related to the violation of Company s Insider Trading Code by certain designated persons in the format prescribed by SEBI vide its ",other,1
+11302,shareholding_pattern,ENTERO,PR_AND_PRGRP: 52.42 | PUBLIC_VAL: 47.58 | NDS_REVISED_STATUS: Revised | SUBMISSION_DT: 10-Apr-2026 | REVISION_DT: 30-Jul-2026,AS ON DATE : 31-Mar-2026 | PR_AND_PRGRP: 52.42 | PUBLIC_VAL: 47.58 | EMPTR: 0 | NDS_REVISED_STATUS: Revised | SUBMISSION_DT: 10-Apr-2026 | REVISION_DT: 30-Jul-2026,other,1
+11333,insider_trading,JSWSTEEL,JSWSTEEL | JSW STEEL LIMITED | Original | Regulation 7 (2) | IT_2266_WebXMLFile_20260807_164930550.xml | IT_2266_20260807_164930574_WEB.html | 20476 | 54739 | -,JSWSTEEL|JSW STEEL LIMITED|Original|Regulation 7 (2)|IT_2266_WebXMLFile_20260807_164930550.xml|IT_2266_20260807_164930574_WEB.html|20476|54739|-,insider_trade,2
+11397,shareholding_pattern,RNBDENIMS,PR_AND_PRGRP: 57.39 | PUBLIC_VAL: 42.61 | NDS_REVISED_STATUS: Revised | SUBMISSION_DT: 17-Jul-2026 | REVISION_DT: 30-Jul-2026,AS ON DATE : 30-Jun-2026 | PR_AND_PRGRP: 57.39 | PUBLIC_VAL: 42.61 | EMPTR: 0 | NDS_REVISED_STATUS: Revised | SUBMISSION_DT: 17-Jul-2026 | REVISION_DT: 30-Jul-2026,other,1
+12187,announcements,NLCINDIA,Press Release,"NLC India Limited has informed the Exchange regarding a press release dated August 07, 2026, titled ""FINANCIAL RESULTS OF NLCIL FOR THE QUARTER ENDED 30.06.2026"". |SUBJECT: Press Release",results,4
+12209,announcements,HGS,Change in Directors/KMP/SMP/Auditor/RTA,HINDUJA GLOBAL SOLUTIONS LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12210,announcements,ELLEN,Change in Directors/KMP/SMP/Auditor/RTA,ELLENBARRIE INDUSTRIAL GASES LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12212,announcements,MGL,Analyst/Investor Meet Para A-XBRL,MAHANAGAR GAS LIMITED has informed the Exchange about Transcripts - earnings or quarterly calls |SUBJECT: Analyst/Investor Meet Para A-XBRL,other,1
+12214,announcements,TATAINVEST,Spurt in Volume,"Significant increase in volume has been observed in Tata Investment Corporation Limited. The Exchange, in order to ensure that investors have latest relevant information about the company and to inform the market place so that the interest of the investors is safeguarded, had written to the company. Tata Investment Corporation Limited has submitted their response. |SUBJECT: Spurt in Volume",clarification_to_rumour,4
+12216,announcements,DIGISPICE,Analyst/Investor Meet Para A-XBRL,DIGISPICE TECHNOLOGIES LIMITED has informed the Exchange about Audio Recording/Video Recording |SUBJECT: Analyst/Investor Meet Para A-XBRL,other,1
+12217,announcements,HEALTHX,Change in Directors/KMP/SMP/Auditor/RTA,HEALTH X PLATFORM LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12218,announcements,CUPID,Change in Directors/KMP/SMP/Auditor/RTA,CUPID LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12225,announcements,ELLEN,Change in Directors/KMP/SMP/Auditor/RTA,ELLENBARRIE INDUSTRIAL GASES LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12226,announcements,BLAL,Change in Directors/KMP/SMP/Auditor/RTA,BEML LAND ASSETS LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12230,announcements,NLCINDIA,Press Release,Press Release |SUBJECT: Press Release,other,1
+12233,board_meetings,UNIINFO,Board Meeting Intimation,Board Meeting Intimation |Meeting Date: 13-Aug-2026,other,1
+12234,insider_trading,DBOL,DBOL | Dhampur Bio Organics Limited | Original | Regulation 7 (2) | IT_20812_WebXMLFile_20260807_190732615.xml | IT_20812_20260807_190732637_WEB.html | 8002 | 28573 | -,DBOL|Dhampur Bio Organics Limited|Original|Regulation 7 (2)|IT_20812_WebXMLFile_20260807_190732615.xml|IT_20812_20260807_190732637_WEB.html|8002|28573|-,insider_trade,2
+12239,voting_results,DGCONTENT,Digicontent Limited,MEETING DATE : 07-AUG-2026,other,1
+12245,announcements,SMLMAH,Notice Of Shareholders Meetings-XBRL,SML MAHINDRA LIMITED has informed the Exchange about Notice of Shareholders Meeting for Postal Ballot |SUBJECT: Notice Of Shareholders Meetings-XBRL,other,1
+12246,announcements,WAAREE,General Updates,Waaree Energies Limited has informed the Exchange about Incorporation of Step - Down Subsidiary. |SUBJECT: General Updates,other,2
+12249,announcements,ANANTRAJ,Shareholders meeting,"Anant Raj Limited has informed the Exchange regarding Proceedings of Annual General Meeting held on August 07, 2026 |SUBJECT: Shareholders meeting",other,1
+12251,announcements,TREEHOUSE,Change in Directors/KMP/SMP/Auditor/RTA,TREE HOUSE EDUCATION & ACCESSORIES LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12254,announcements,TREEHOUSE,Change in Directors/KMP/SMP/Auditor/RTA,TREE HOUSE EDUCATION & ACCESSORIES LIMITED has informed the Exchange about Change in Directors/KMP/SMP/Auditor/RTA |SUBJECT: Change in Directors/KMP/SMP/Auditor/RTA,management_change,4
+12258,insider_trading,DBOL,DBOL | Dhampur Bio Organics Limited | Original | Regulation 7 (2) | IT_20812_WebXMLFile_20260807_190839642.xml | IT_20812_20260807_190839670_WEB.html | 8306 | 28851 | -,DBOL|Dhampur Bio Organics Limited|Original|Regulation 7 (2)|IT_20812_WebXMLFile_20260807_190839642.xml|IT_20812_20260807_190839670_WEB.html|8306|28851|-,insider_trade,2
+12275,announcements,GPIL,Statement of deviation(s) or variation(s) under Reg. 32,Godawari Power And Ispat limited has informed the Exchange about statement of deviation(s) or variation(s) under Reg. 32 |SUBJECT: Statement of deviation(s) or variation(s) under Reg. 32,other,2
+12276,announcements,ELLENBARRIE2024,Press Release,"Ellenbarrie Industrial Gases Limited has informed the Exchange regarding a press release dated August 07, 2026, titled ""Press Release"". |SUBJECT: Press Release",other,1
+12278,announcements,CHANDAN,General Updates,Chandan Healthcare Limited has informed the Exchange about Divestment of Company's Entire Stake in Chandan Pharmacy Limited to Chandan Hospital Limited |SUBJECT: General Updates,ma,4
+12281,announcements,PVRINOXLTD,Updates,"PVR INOX Limited has informed the Exchange regarding Intimation letter sent to shareholders holding shares in physical form pursuant to SEBI Master circular dated February 6, 2026 for furnishing of KYC details. |SUBJECT: Updates",other,1
+12286,announcements,SANGHVIMOV,Analyst/Investor Meet Para A-XBRL,SANGHVI MOVERS LIMITED has informed the Exchange about Transcripts - earnings or quarterly calls |SUBJECT: Analyst/Investor Meet Para A-XBRL,other,1

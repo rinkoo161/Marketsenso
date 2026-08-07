@@ -35,15 +35,17 @@ QUERY = """
 select * from (
   (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400) descr
    from filings f join filing_classifications c on c.filing_id = f.id
-   where c.routine order by f.id % 997 limit 30)
+   where c.routine and c.model_version = :mv order by f.id % 997 limit 30)
   union all
   (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400)
    from filings f join filing_classifications c on c.filing_id = f.id
-   where not c.routine and c.engine = 'rules' order by f.id % 991 limit 50)
+   where not c.routine and c.engine = 'rules' and c.model_version = :mv
+   order by f.id % 991 limit 50)
   union all
   (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400)
    from filings f join filing_classifications c on c.filing_id = f.id
-   where c.engine in ('local','online') order by f.id % 983 limit 20)
+   where c.engine in ('local','online') and c.model_version = :mv
+   order by f.id % 983 limit 20)
 ) s order by id
 """
 
@@ -53,9 +55,11 @@ def main() -> None:
         print(f"refusing to overwrite {OUT} — the eval set must stay fixed.\n"
               "Delete it explicitly if you intend to rebuild (labels will be lost).")
         sys.exit(1)
+    from marketsense.agents.a2_docintel.classifier import MODEL_VERSION
+
     with session() as db:
         db.execute(text("select setseed(0.42)"))
-        rows = db.execute(text(QUERY)).all()
+        rows = db.execute(text(QUERY), {"mv": MODEL_VERSION}).all()
     with OUT.open("w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["filing_id", "feed", "symbol", "subject", "description",

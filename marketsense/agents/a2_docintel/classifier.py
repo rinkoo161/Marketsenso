@@ -41,7 +41,11 @@ from marketsense.llm.client import classify_json
 
 log = get_logger("a2")
 
-MODEL_VERSION = "a2-v1-rules+triage"
+# v2 (2026-08-07): feed priors extended to all periodic/structural feeds
+# after the live backlog showed 43% of LLM traffic was compliance filings
+# with "PERIOD END DATE" metadata. Bumping the version makes the consumer
+# reclassify everything under v2; v1 rows remain (append-only history).
+MODEL_VERSION = "a2-v2-rules+triage"
 
 # Rule hits at or above this confidence skip the model entirely.
 RULE_FINAL_CONFIDENCE = 0.75

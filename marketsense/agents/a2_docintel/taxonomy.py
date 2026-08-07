@@ -153,14 +153,36 @@ _RULES: list[tuple[re.Pattern, str, int, float, float]] = [
 ]
 
 # Feed-level priors — when the feed itself IS the classification.
+# (category, materiality, sentiment, confidence, routine)
+# The routine=True rows were found live (2026-08-07): periodic compliance
+# XBRL feeds whose metadata is just "PERIOD END DATE: …" were burning an
+# LLM call each to conclude 'other' — 43% of all model traffic. A periodic
+# disclosure is not an event; its DATA feeds A3/A5 in Phase 3, but its
+# classification is routine by construction.
 _FEED_CATEGORY = {
-    "insider_trading": ("insider_trade", 3, 0.0, 0.9),
-    "encumbrance": ("pledge_creation_release", 5, -0.4, 0.9),
-    "financial_results": ("results", 5, 0.0, 0.9),
-    "integrated_financials": ("results", 4, 0.0, 0.85),
-    "sast_reg29": ("insider_trade", 3, 0.0, 0.85),
-    "sast_reg31": ("insider_trade", 3, 0.0, 0.85),
-    "buyback": ("dividend_bonus_split_buyback", 5, 0.5, 0.9),
+    "insider_trading": ("insider_trade", 3, 0.0, 0.9, False),
+    "encumbrance": ("pledge_creation_release", 5, -0.4, 0.9, False),
+    "financial_results": ("results", 5, 0.0, 0.9, False),
+    "integrated_financials": ("results", 4, 0.0, 0.85, False),
+    "sast_reg29": ("insider_trade", 3, 0.0, 0.85, False),
+    "sast_reg31": ("insider_trade", 3, 0.0, 0.85, False),
+    "buyback": ("dividend_bonus_split_buyback", 5, 0.5, 0.9, False),
+    "offer_documents": ("fundraise", 4, 0.1, 0.7, False),
+    "corporate_actions": ("dividend_bonus_split_buyback", 3, 0.3, 0.7, False),
+    # periodic/structural disclosures — routine, no LLM, ever
+    "related_party": ("other", 2, 0.0, 0.85, True),
+    "shareholding_pattern": ("other", 2, 0.0, 0.85, True),
+    "secretarial_compliance": ("other", 1, 0.0, 0.9, True),
+    "annual_reports": ("other", 2, 0.0, 0.9, True),
+    "deviation_variation": ("other", 2, -0.1, 0.8, True),
+    "board_meetings": ("other", 1, 0.0, 0.85, True),
+    "voting_results": ("other", 1, 0.0, 0.85, True),
+    "investor_complaints": ("other", 1, 0.0, 0.9, True),
+    "share_transfers": ("other", 1, 0.0, 0.9, True),
+    "brsr": ("other", 1, 0.0, 0.9, True),
+    "unitholding_patterns": ("other", 1, 0.0, 0.9, True),
+    "corporate_governance": ("other", 1, 0.0, 0.9, True),
+    "circulars": ("other", 1, 0.0, 0.85, True),
 }
 
 
@@ -185,8 +207,8 @@ def classify_by_rules(feed: str, subject: str | None, description: str | None) -
         return best
 
     if feed in _FEED_CATEGORY:
-        cat, mat, sent, conf = _FEED_CATEGORY[feed]
-        return RuleHit(cat, mat, sent, conf, rule=f"feed:{feed}")
+        cat, mat, sent, conf, routine = _FEED_CATEGORY[feed]
+        return RuleHit(cat, mat, sent, conf, routine=routine, rule=f"feed:{feed}")
     return None
 
 

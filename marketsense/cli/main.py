@@ -187,6 +187,35 @@ def master_sync() -> None:
         typer.echo(str(sync_change_histories(db, client)))
 
 
+@app.command()
+def signals(
+    stance: str = typer.Option(None, help="Filter: buy/accumulate/hold/reduce/exit"),
+    limit: int = typer.Option(20),
+) -> None:
+    """Latest conviction signals, ranked."""
+    from sqlalchemy import select
+
+    from marketsense.db.models import Signal
+
+    session, _ = _init()
+    with session() as db:
+        q = (select(Signal).order_by(Signal.as_of.desc(), Signal.conviction.desc())
+             .limit(500))
+        rows = list(db.scalars(q))
+        latest: dict[str, Signal] = {}
+        for s in rows:
+            latest.setdefault(s.symbol, s)
+        out = [s for s in latest.values() if not stance or s.stance == stance]
+        out.sort(key=lambda s: -s.conviction)
+        for s in out[:limit]:
+            lv = (f"entry {s.entry_low}-{s.entry_high} tgt {s.target_low}-"
+                  f"{s.target_high} stop {s.invalidation}"
+                  if s.entry_low else "")
+            typer.echo(f"{s.stance:10} {s.conviction:5.1f} conf {s.confidence:.2f} "
+                       f"{s.symbol:12} [{s.risk_verdict:9}] "
+                       f"size {s.size_pct or '-':>4}% {s.horizon:6} {lv}")
+
+
 @app.command(name="backfill-financials")
 def backfill_financials(
     top: int = typer.Option(500, help="Top-N symbols by median turnover"),

@@ -119,6 +119,38 @@ def pulse(hours: int = Query(24, le=168), min_materiality: int = Query(5, ge=0, 
         ]
 
 
+@app.get("/api/signals")
+def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
+            limit: int = Query(50, le=200)):
+    """Latest signal per symbol, ranked by conviction. Suppressed rows
+    included — A6 vetoes are information, not absence."""
+    from marketsense.db.models import Signal
+    from sqlalchemy import select
+
+    with session() as db:
+        rows = list(db.scalars(
+            select(Signal).order_by(Signal.as_of.desc()).limit(2000)))
+    latest: dict[str, object] = {}
+    for s in rows:
+        latest.setdefault(s.symbol, s)
+    out = [s for s in latest.values()
+           if s.conviction >= min_conviction
+           and (not stance or s.stance == stance)]
+    out.sort(key=lambda s: -s.conviction)
+    return [
+        {
+            "symbol": s.symbol, "stance": s.stance,
+            "conviction": s.conviction, "confidence": s.confidence,
+            "risk_verdict": s.risk_verdict, "horizon": s.horizon,
+            "entry": [s.entry_low, s.entry_high],
+            "target": [s.target_low, s.target_high],
+            "invalidation": s.invalidation, "size_pct": s.size_pct,
+            "thesis": s.thesis, "as_of": s.as_of, "signal_id": s.id,
+        }
+        for s in out[:limit]
+    ]
+
+
 @app.get("/api/stats")
 def stats():
     with session() as db:

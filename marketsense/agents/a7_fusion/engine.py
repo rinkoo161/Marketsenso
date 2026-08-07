@@ -1,0 +1,301 @@
+"""A7 — fusion. The ONLY agent that issues a stance (§3).
+
+Inputs per symbol: latest a3/a4/a5 Score rows + an Event Score derived
+from recent high-materiality classifications + A6's verdict.
+
+Fusion rules:
+  * missing inputs renormalise the profile weights AND cut confidence —
+    a symbol with only a technical score cannot reach high conviction on
+    weights alone (same honesty contract as A3/A5).
+  * freshness decay: an input older than its half-life contributes less
+    confidence (fundamentals age in quarters, technicals in days).
+  * A6 hard_block → stance 'suppressed', conviction forced to 0, the
+    block reasons quoted verbatim in the thesis. A6 penalty → conviction
+    capped at 55 and size halved, reasons attached.
+  * hysteresis: a new signal row is written only when the stance changes
+    or conviction moves > HYSTERESIS points — §3's alert-spam guard.
+
+Thesis: DETERMINISTIC — bullets are templated from the stored component
+values themselves (score ids + filing ids + numbers), so every claim is
+traceable by construction. LLM prose polish can be layered in Phase 5;
+it will write around these values, never produce them (§10).
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import distinct, func, select
+
+from marketsense.agents.a7_fusion.profiles import HORIZON, PROFILES, PROFILES_VERSION
+from marketsense.bus import topics
+from marketsense.bus.outbox import publish
+from marketsense.core.logging import get_logger
+from marketsense.db.models import Filing, FilingClassification, Score, Signal
+
+log = get_logger("a7.engine")
+
+MODEL_VERSION = f"a7-v1-{PROFILES_VERSION}"
+HYSTERESIS = 8.0
+EVENT_WINDOW_D = 30
+
+# freshness half-lives per input (days) — beyond ~2 half-lives an input
+# stops adding confidence, though its value still contributes
+HALF_LIFE = {"a3": 100.0, "a4": 5.0, "a5": 7.0, "event": 10.0}
+
+
+def _decay(age_days: float, agent: str) -> float:
+    return 0.5 ** (age_days / HALF_LIFE[agent])
+
+
+def event_score(db, symbol: str, *, now: datetime) -> tuple[float, float, list[dict]]:
+    """(score 0-100, confidence, evidence) from recent classifications.
+    50 = neutral; materiality × sentiment × recency push it either way."""
+    from marketsense.agents.a2_docintel.classifier import (
+        MODEL_VERSION as A2_VERSION,
+    )
+
+    since = now - timedelta(days=EVENT_WINDOW_D)
+    # current A2 version only — a filing reclassified across v3/v4/v5 must
+    # count ONCE, not once per version (live bug: triplicated M&A filings
+    # inflated an event score to 93)
+    rows = db.execute(
+        select(FilingClassification, Filing.subject)
+        .join(Filing, Filing.id == FilingClassification.filing_id)
+        .where(Filing.symbol == symbol,
+               FilingClassification.model_version == A2_VERSION,
+               FilingClassification.observed_at >= since,
+               FilingClassification.routine.is_(False),
+               FilingClassification.materiality >= 3)
+        .order_by(FilingClassification.materiality.desc())
+        .limit(10)).all()
+    if not rows:
+        return 50.0, 0.0, []
+    push, evidence = 0.0, []
+    for c, subject in rows:
+        age = max(0.0, (now - c.observed_at).total_seconds() / 86400.0)
+        w = _decay(age, "event") * (c.materiality / 10.0) * c.confidence
+        push += 50.0 * w * c.sentiment
+        evidence.append({"filing_id": c.filing_id, "classification_id": c.id,
+                         "category": c.category, "materiality": c.materiality,
+                         "sentiment": c.sentiment,
+                         "subject": (subject or "")[:80]})
+    score = max(0.0, min(100.0, 50.0 + push))
+    conf = min(1.0, max(r[0].confidence for r in rows))
+    return score, conf, evidence
+
+
+def _latest_scores(db, symbol: str) -> dict[str, Score]:
+    out: dict[str, Score] = {}
+    for agent in ("a3", "a4", "a5", "a6"):
+        row = db.scalars(
+            select(Score).where(Score.agent == agent, Score.symbol == symbol)
+            .order_by(Score.as_of.desc()).limit(1)).first()
+        if row is not None:
+            out[agent] = row
+    return out
+
+
+def _stance(conviction: float, risk_verdict: str) -> str:
+    if risk_verdict == "hard_block":
+        return "suppressed"
+    if conviction >= 70:
+        return "buy"
+    if conviction >= 60:
+        return "accumulate"
+    if conviction >= 40:
+        return "hold"
+    if conviction >= 25:
+        return "reduce"
+    return "exit"
+
+
+def _levels(a4: Score | None) -> dict:
+    if a4 is None or not a4.components:
+        return {}
+    c = a4.components
+    close, atr, stop = c.get("close"), c.get("atr14"), c.get("atr_stop")
+    if not close or not atr or not stop:
+        return {}
+    risk = close - stop
+    return {
+        "entry_low": round(close - 0.5 * atr, 2),
+        "entry_high": round(close + 0.25 * atr, 2),
+        "target_low": round(close + 1.5 * risk, 2),
+        "target_high": round(close + 2.5 * risk, 2),
+        "invalidation": stop,
+        "level_basis": f"close {close}, ATR14 {atr}, stop = close - 2*ATR "
+                       f"(risk/reward 1.5-2.5x)",
+    }
+
+
+def _size_pct(a4: Score | None, risk_verdict: str) -> float | None:
+    """Volatility-adjusted: risking 1% of capital to the stop.
+    size% = 1% / (2*ATR/close). Penalty halves it. Capped at 10%."""
+    if a4 is None or not a4.components:
+        return None
+    close, atr = a4.components.get("close"), a4.components.get("atr14")
+    if not close or not atr:
+        return None
+    size = min(10.0, 1.0 / (2.0 * atr / close))
+    if risk_verdict == "penalty":
+        size /= 2.0
+    return round(size, 1)
+
+
+def _thesis(symbol: str, inputs: dict, ev_evidence: list[dict],
+            a6: Score | None, conviction: float) -> dict:
+    bullets_for: list[str] = []
+    bullets_against: list[str] = []
+
+    a3, a4, a5 = inputs.get("a3"), inputs.get("a4"), inputs.get("a5")
+    if a4:
+        c = a4.components or {}
+        line = (f"technical {a4.score:.0f}/100 ({a4.label}); close {c.get('close')} "
+                f"vs SMA200 {c.get('sma200') and round(c['sma200'], 1)}, "
+                f"RSI {c.get('rsi14')} [score#{a4.id}]")
+        (bullets_for if a4.score >= 55 else bullets_against).append(line)
+    if a3:
+        c = a3.components or {}
+        rev_yoy = c.get("rev_yoy")
+        yoy_txt = f"{rev_yoy:.0%}" if rev_yoy is not None else "n/a"
+        line = (f"fundamentals {a3.score:.0f}/100 over {c.get('quarters_available')}q "
+                f"({c.get('basis')}); rev YoY {yoy_txt} [score#{a3.id}]")
+        (bullets_for if a3.score >= 55 else bullets_against).append(line)
+        for flag in (c.get("flags") or [])[:2]:
+            bullets_against.append(f"forensic flag: {flag} [score#{a3.id}]")
+    if a5:
+        c = a5.components or {}
+        line = f"flow {a5.score:.0f}/100 ({a5.label}) [score#{a5.id}]"
+        if c.get("deal_ratio") is not None:
+            line += f"; 20d large-deal net ratio {c['deal_ratio']:+.1%}"
+        if c.get("promoter_delta_pp") is not None:
+            line += f"; promoter Δ {c['promoter_delta_pp']:+.2f}pp"
+        (bullets_for if a5.score >= 55 else bullets_against).append(line)
+    for ev in ev_evidence[:2]:
+        line = (f"{ev['category']} m{ev['materiality']} "
+                f"({ev['subject']}) [filing#{ev['filing_id']}]")
+        (bullets_for if ev["sentiment"] > 0 else bullets_against).append(line)
+    if a6 and a6.label != "clear":
+        for reason in (a6.components or {}).get("hard_blocks", [])[:3]:
+            bullets_against.append(f"A6 block: {reason} [score#{a6.id}]")
+        for reason in (a6.components or {}).get("penalties", [])[:3]:
+            bullets_against.append(f"A6 penalty: {reason} [score#{a6.id}]")
+
+    # the single thing that would change the view
+    if a4 and (a4.components or {}).get("atr_stop"):
+        changer = (f"a close below {a4.components['atr_stop']} "
+                   f"(2xATR stop) invalidates the technical basis")
+    elif a3:
+        changer = "next quarterly result reversing the fundamental trend"
+    else:
+        changer = "any high-materiality filing (event coverage is the only input)"
+
+    return {
+        "for": bullets_for[:3], "against": bullets_against[:3],
+        "view_changer": changer,
+        "evidence": {
+            "score_ids": {k: v.id for k, v in inputs.items()},
+            "event_filings": [e["filing_id"] for e in ev_evidence],
+        },
+    }
+
+
+def fuse_symbol(db, symbol: str, *, profile: str = "default",
+                now: datetime | None = None) -> dict | None:
+    now = now or datetime.now(timezone.utc)
+    inputs = _latest_scores(db, symbol)
+    a6 = inputs.pop("a6", None)
+    ev_score, ev_conf, ev_evidence = event_score(db, symbol, now=now)
+
+    weights = PROFILES[profile]
+    axes = {
+        "fundamental": inputs.get("a3"),
+        "technical": inputs.get("a4"),
+        "flow": inputs.get("a5"),
+    }
+    total_w = conviction = conf_acc = 0.0
+    for axis, w in weights.items():
+        if axis == "event":
+            if ev_conf > 0:
+                conviction += w * ev_score / 100.0
+                conf_acc += w * ev_conf
+                total_w += w
+            continue
+        row = axes.get(axis)
+        if row is None:
+            continue
+        age = max(0.0, (now - row.as_of).total_seconds() / 86400.0)
+        agent = {"fundamental": "a3", "technical": "a4", "flow": "a5"}[axis]
+        conviction += w * row.score / 100.0
+        conf_acc += w * (row.confidence or 0.5) * _decay(age, agent)
+        total_w += w
+    if total_w < 40.0:
+        return None  # not enough signal families to say anything
+    conviction = round(conviction * 100.0 / total_w, 1)
+    confidence = round(conf_acc / total_w, 2)
+
+    risk_verdict = a6.label if a6 else "unassessed"
+    if risk_verdict == "hard_block":
+        conviction = 0.0
+    elif risk_verdict == "penalty":
+        conviction = min(conviction, 55.0)
+
+    stance = _stance(conviction, risk_verdict)
+    levels = _levels(inputs.get("a4"))
+    thesis = _thesis(symbol, {**inputs, **({"a6": a6} if a6 else {})},
+                     ev_evidence, a6, conviction)
+    thesis["weights_covered_pct"] = total_w
+    thesis["event_score"] = ev_score
+
+    return {
+        "symbol": symbol, "profile": profile, "stance": stance,
+        "conviction": conviction, "confidence": confidence,
+        "horizon": HORIZON[profile], "risk_verdict": risk_verdict,
+        "size_pct": _size_pct(inputs.get("a4"), risk_verdict),
+        "thesis": thesis, **levels,
+    }
+
+
+def issue_all(db_factory, *, profile: str = "default") -> dict:
+    """Fuse every symbol with ≥2 score families; write a Signal only when
+    hysteresis allows. Emits signal.issued per written row."""
+    stats = {"considered": 0, "issued": 0, "held_by_hysteresis": 0,
+             "suppressed": 0}
+    now = datetime.now(timezone.utc)
+    with db_factory() as db:
+        symbols = [s for (s,) in db.execute(
+            select(Score.symbol).where(Score.agent.in_(("a3", "a4", "a5")))
+            .group_by(Score.symbol)
+            .having(func.count(distinct(Score.agent)) >= 2))]
+        for sym in symbols:
+            result = fuse_symbol(db, sym, profile=profile, now=now)
+            if result is None:
+                continue
+            stats["considered"] += 1
+            prev = db.scalars(
+                select(Signal).where(Signal.symbol == sym,
+                                     Signal.profile == profile)
+                .order_by(Signal.as_of.desc()).limit(1)).first()
+            if (prev is not None and prev.stance == result["stance"]
+                    and abs(prev.conviction - result["conviction"]) <= HYSTERESIS):
+                stats["held_by_hysteresis"] += 1
+                continue
+            row = Signal(model_version=MODEL_VERSION, as_of=now, **{
+                k: result.get(k) for k in
+                ("symbol", "profile", "stance", "conviction", "confidence",
+                 "horizon", "entry_low", "entry_high", "target_low",
+                 "target_high", "invalidation", "size_pct", "thesis",
+                 "risk_verdict")})
+            db.add(row)
+            db.flush()
+            publish(db, topics.SIGNAL_ISSUED, {
+                "symbol": sym, "signal_id": row.id, "stance": row.stance,
+                "conviction": row.conviction, "profile": profile,
+                "risk_verdict": row.risk_verdict,
+            })
+            stats["issued"] += 1
+            if row.stance == "suppressed":
+                stats["suppressed"] += 1
+        db.commit()
+    log.info("a7_issued", **stats)
+    return stats

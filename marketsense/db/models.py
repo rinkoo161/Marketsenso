@@ -398,6 +398,41 @@ class Surveillance(Base):
     )
 
 
+# ======================================================= phase 4: signals
+
+class Signal(Base):
+    """A7's output — the only stance-bearing record in the system.
+    Append-only; hysteresis works by comparing against the previous row.
+    `thesis` embeds the full evidence trail (score ids, filing ids,
+    metric values) — §10: every number traceable to a stored record."""
+
+    __tablename__ = "signals"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    security_id: Mapped[int | None] = mapped_column(ForeignKey("securities.id"))
+    profile: Mapped[str] = mapped_column(String(24))     # default|momentum|…
+    stance: Mapped[str] = mapped_column(String(12))      # buy|accumulate|hold|reduce|exit|suppressed
+    conviction: Mapped[float]                             # 0-100
+    confidence: Mapped[float]
+    horizon: Mapped[str | None] = mapped_column(String(16))
+    entry_low: Mapped[float | None]
+    entry_high: Mapped[float | None]
+    target_low: Mapped[float | None]
+    target_high: Mapped[float | None]
+    invalidation: Mapped[float | None]
+    size_pct: Mapped[float | None]                        # suggested % of capital
+    thesis: Mapped[dict | None] = mapped_column(JSONB)
+    risk_verdict: Mapped[str | None] = mapped_column(String(12))
+    model_version: Mapped[str] = mapped_column(String(64))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        Index("ix_signals_symbol_asof", "symbol", "as_of"),
+    )
+
+
 # ============================================================ ops tables
 
 class AgentRun(Base):

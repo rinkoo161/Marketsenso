@@ -109,10 +109,16 @@ def run(db_factory, *, profile: str = "default", rebalance_days: int = 5,
         dates = [r.trade_date for r in idx_rows]
         rebalances = dates[80:-max(FWD_WINDOWS.values()):rebalance_days]
 
+        from sqlalchemy import func as sfunc
+
+        # history-rich symbols first — a symbol whose only quarter was
+        # broadcast AFTER the test window is (correctly) invisible to
+        # every rebalance and can never produce an observation
         symbols = [s for (s,) in db.execute(
             select(FinancialsQuarterly.symbol)
             .where(FinancialsQuarterly.basis == "consolidated")
-            .group_by(FinancialsQuarterly.symbol))]
+            .group_by(FinancialsQuarterly.symbol)
+            .order_by(sfunc.count().desc()))]
         if max_symbols:
             symbols = symbols[:max_symbols]
 

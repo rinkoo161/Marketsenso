@@ -176,8 +176,13 @@ class IngestSupervisor:
 
             r6 = ingest_all(session, self._client)
             r7 = a5_score_all(session)
+            # A6 last — it consumes today's scores and surveillance
+            from marketsense.agents.a6_risk.engine import assess_all
+
+            r8 = assess_all(session)
             return {"prices": r1, "indices": r2, "a4": r3,
-                    "a3_load": r4, "a3": r5, "a5_ingest": r6, "a5": r7}
+                    "a3_load": r4, "a3": r5, "a5_ingest": r6, "a5": r7,
+                    "a6": r8}
 
         _record_run("a4_eod", run)
 

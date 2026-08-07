@@ -27,8 +27,11 @@ def make_consumer(session_factory) -> Consumer:
                 log.warning("filing_missing", filing_id=filing_id)
                 return
             # LLM only for fresh filings; the historical backlog is
-            # rules-only (see classify_filing docstring for the why)
-            fresh = filing.observed_at >= datetime.now(timezone.utc) - timedelta(days=2)
+            # rules-only (see classify_filing docstring for the why).
+            # 6h, not days: the whole corpus was observed within the last
+            # 2 days, so a day-scale window put two-thirds of the backlog
+            # back on the 40s/call LLM path it was meant to avoid.
+            fresh = filing.observed_at >= datetime.now(timezone.utc) - timedelta(hours=6)
             row = classify_filing(db, filing, allow_llm=fresh)
             db.commit()
             if row is not None and row.materiality >= 7:

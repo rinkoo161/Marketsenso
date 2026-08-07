@@ -31,24 +31,35 @@ OUT = Path(__file__).parent / "eval_set.csv"
 
 # setseed makes the sample reproducible — the set must not drift between
 # the labelling session and the scoring run.
+# row_number() partitioned by feed interleaves feeds within each stratum —
+# the first build of this set was 46% P2 compliance feeds with ZERO
+# results/insider/pledge rows because a plain modulo-order sample follows
+# whatever the corpus is skewed toward. Feed-interleaving forces breadth.
 QUERY = """
 select * from (
-  (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400) descr
-   from filings f join filing_classifications c on c.filing_id = f.id
-   where c.routine and c.model_version = :mv order by f.id % 997 limit 30)
+  (select id, feed, symbol, subject, descr from (
+     select f.id, f.feed, f.symbol, f.subject, left(f.description, 400) descr,
+            row_number() over (partition by f.feed order by f.id % 997) rn
+     from filings f join filing_classifications c on c.filing_id = f.id
+     where c.routine and c.model_version = :mv) t
+   order by rn, feed limit 30)
   union all
-  (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400)
-   from filings f join filing_classifications c on c.filing_id = f.id
-   where not c.routine and c.engine = 'rules' and c.model_version = :mv
-   -- degraded-mode rows measure the fallback, not the live pipeline
-   and coalesce(c.rule_trace,'') not like '%no_llm%'
-   and coalesce(c.rule_trace,'') not like '%llm_unavailable%'
-   order by f.id % 991 limit 50)
+  (select id, feed, symbol, subject, descr from (
+     select f.id, f.feed, f.symbol, f.subject, left(f.description, 400) descr,
+            row_number() over (partition by f.feed order by f.id % 991) rn
+     from filings f join filing_classifications c on c.filing_id = f.id
+     where not c.routine and c.engine = 'rules' and c.model_version = :mv
+     -- degraded-mode rows measure the fallback, not the live pipeline
+     and coalesce(c.rule_trace,'') not like '%no_llm%'
+     and coalesce(c.rule_trace,'') not like '%llm_unavailable%') t
+   order by rn, feed limit 50)
   union all
-  (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400)
-   from filings f join filing_classifications c on c.filing_id = f.id
-   where c.engine in ('local','online') and c.model_version = :mv
-   order by f.id % 983 limit 20)
+  (select id, feed, symbol, subject, descr from (
+     select f.id, f.feed, f.symbol, f.subject, left(f.description, 400) descr,
+            row_number() over (partition by f.feed order by f.id % 983) rn
+     from filings f join filing_classifications c on c.filing_id = f.id
+     where c.engine in ('local','online') and c.model_version = :mv) t
+   order by rn, feed limit 20)
 ) s order by id
 """
 

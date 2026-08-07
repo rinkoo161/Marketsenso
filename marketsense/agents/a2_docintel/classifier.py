@@ -46,9 +46,15 @@ log = get_logger("a2")
 # with "PERIOD END DATE" metadata.
 # v3 (2026-08-08): auditor_resignation restricted to STATUTORY auditors —
 # internal/secretarial/cost auditor changes were all drawing the m9 floor.
+# v4 (2026-08-08): eval-driven fixes — FEED_AUTHORITATIVE bypasses text
+# rules for structured feeds (SAST-29 "acquisition" ≠ M&A, board-meeting
+# intimations ≠ results, circulars ≠ company events), Reg 31 = pledge,
+# CIRP → litigation, "SEBI (LODR)…order received" ≠ enforcement, CP =
+# debt_raise. NOTE: fixes derived from eval-set misses, so the same-set
+# re-score is diagnostic; the confirmation number comes from eval set 2.
 # Each bump makes the consumer reclassify; prior-version rows remain
 # (append-only history).
-MODEL_VERSION = "a2-v3-rules+triage"
+MODEL_VERSION = "a2-v4-rules+triage"
 
 # Rule hits at or above this confidence skip the model entirely.
 RULE_FINAL_CONFIDENCE = 0.75

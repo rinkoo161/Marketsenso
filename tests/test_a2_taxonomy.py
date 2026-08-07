@@ -78,6 +78,43 @@ def test_feed_priors_cover_structured_feeds():
     assert enc.category == "pledge_creation_release"
 
 
+def test_eval_miss_classes_2026_08_08():
+    """Each assertion is one miss class from the first eval run."""
+    # SAST-29 metadata contains 'substantial acquisition' — NOT M&A
+    hit = classify_by_rules("sast_reg29", "Chambal Fertilizers",
+                            "substantial acquisition of shares and takeovers "
+                            "NAME(S) OF THE ACQUIRER : SCM Investment")
+    assert hit.category == "insider_trade"
+    # Reg 31 is pledge disclosure
+    assert classify_by_rules("sast_reg31", "Apollo Tyres",
+                             "NAME OF PROMOTER(S) : X").category == "pledge_creation_release"
+    # board_meetings feed: an intimation titled 'Financial Results' is not results
+    hit = classify_by_rules("board_meetings", "Financial Results",
+                            "Financial Results |Meeting Date: 13-Aug-2026")
+    assert hit.category == "other" and hit.materiality <= 1
+    # NSE circular about MF scheme merger is not company M&A
+    hit = classify_by_rules("circulars",
+                            "Merger of certain schemes of Nippon India Mutual Fund", "")
+    assert hit.category == "other"
+    # CIRP outranks the results text in the same filing
+    hit = classify_by_rules("announcements", "Corporate Insolvency Resolution Process",
+                            "Outcome of the Board Meeting: financial results approved "
+                            "during Corporate Insolvency Resolution Process")
+    assert hit.category == "litigation"
+    # 'SEBI (LODR) ... Order Received' is a business win, not enforcement
+    hit = classify_by_rules("announcements", "General Updates",
+                            "General Updates on SEBI (LODR) 2015 on Order Received.")
+    assert hit.category == "order_win"
+    # commercial paper is debt, wherever it appears
+    assert classify_by_rules("offer_documents",
+                             "CP-NI-Disclosure Document-INE081A14HI3 TSL CP",
+                             "").category == "debt_raise"
+    # …while IPO prospectus filings stay fundraise via the feed prior
+    assert classify_by_rules("offer_documents",
+                             "Juniper Green Energy Limited has filled PROSP for its IPO",
+                             "").category == "fundraise"
+
+
 def test_order_win_positive_sentiment():
     hit = classify_by_rules("announcements", "Award of Contract",
                             "received a work order worth Rs 540 crore")

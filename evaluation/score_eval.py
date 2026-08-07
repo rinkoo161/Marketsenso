@@ -25,7 +25,8 @@ from marketsense.agents.a2_docintel.taxonomy import CATEGORIES  # noqa: E402
 from marketsense.db.engine import session  # noqa: E402
 from marketsense.db.models import FilingClassification  # noqa: E402
 
-EVAL = Path(__file__).parent / "eval_set.csv"
+# default set 1; pass another csv as argv[1] (e.g. eval_set2.csv)
+EVAL = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "eval_set.csv"
 REPORTS = Path(__file__).parent / "reports"
 
 

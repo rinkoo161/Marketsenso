@@ -102,9 +102,16 @@ _RULES: list[tuple[re.Pattern, str, int, float, float]] = [
     # "internal" appearing far from the match.
     (_r(r"resignation.{0,40}(statutory )?auditor|auditor.{0,30}resign"),
      "auditor_resignation", 9, -0.9, 0.95),
-    (_r(r"(sebi|nclt|nclat|enforcement directorate|\bed\b|income tax|gst).{0,50}"
-        r"(order|action|penalt|search|raid|show.?cause|investigation)"),
+    # "order" alone is poison next to "SEBI (LODR)" citations — a company
+    # reporting "General Updates under SEBI (LODR) 2015 on Order Received"
+    # is winning BUSINESS, not being raided (eval miss 2026-08-08). Only
+    # unambiguous enforcement markers fire this rule.
+    (_r(r"(sebi|nclt|nclat|enforcement directorate|\bed\b|income tax|gst).{0,60}"
+        r"(order (passed|dated)|final order|interim order|penalt|search|raid|"
+        r"show.?cause|investigation|prohibit|debar)"),
      "regulatory_action", 7, -0.7, 0.8),
+    (_r(r"corporate insolvency|\bcirp\b|insolvency resolution|liquidation order"),
+     "litigation", 7, -0.7, 0.85),
     (_r(r"(plant|factory|unit|operations?).{0,30}(shut ?down|suspension|halt|closure)"),
      "plant_shutdown", 7, -0.7, 0.8),
     (_r(r"\bfire\b|accident|explosion|mishap"), "fire_accident", 6, -0.6, 0.7),
@@ -131,7 +138,10 @@ _RULES: list[tuple[re.Pattern, str, int, float, float]] = [
     # -- capital events
     (_r(r"\bqip\b|qualified institutional|preferential (issue|allotment)|rights issue|warrants?\b.{0,30}(issue|allot|convert)|fund.?rais"),
      "fundraise", 5, 0.1, 0.8),
-    (_r(r"(ncd|non.?convertible debenture|commercial paper|bond issue|debt.{0,20}(raise|issue))"),
+    # CP-NI/CP-RI are the offer_documents feed's commercial-paper filings —
+    # debt, not equity fundraise (eval miss 2026-08-08)
+    (_r(r"(ncd|non.?convertible debenture|commercial paper|\bCP-(NI|RI)\b|"
+        r"bond issue|debt.{0,20}(raise|issue))"),
      "debt_raise", 3, 0.0, 0.7),
     (_r(r"buy.?back"), "dividend_bonus_split_buyback", 6, 0.6, 0.85),
     (_r(r"dividend|bonus (issue|share)|stock split|sub.?division of (equity )?shares"),
@@ -171,7 +181,9 @@ _FEED_CATEGORY = {
     "financial_results": ("results", 5, 0.0, 0.9, False),
     "integrated_financials": ("results", 4, 0.0, 0.85, False),
     "sast_reg29": ("insider_trade", 3, 0.0, 0.85, False),
-    "sast_reg31": ("insider_trade", 3, 0.0, 0.85, False),
+    # Reg 31 is the ENCUMBRANCE disclosure regulation — eval miss class of
+    # 2026-08-08 (6 rows): it was mapped to insider_trade.
+    "sast_reg31": ("pledge_creation_release", 4, -0.3, 0.85, False),
     "buyback": ("dividend_bonus_split_buyback", 5, 0.5, 0.9, False),
     "offer_documents": ("fundraise", 4, 0.1, 0.7, False),
     "corporate_actions": ("dividend_bonus_split_buyback", 3, 0.3, 0.7, False),
@@ -196,6 +208,22 @@ _NON_STATUTORY_AUDITOR = _r(r"(internal|secretarial|cost) auditor")
 _STATUTORY_AUDITOR = _r(r"statutory auditor")
 
 
+# Feeds whose SEMANTICS are the feed itself — the free-text rules must not
+# see them at all. Eval evidence (2026-08-08): SAST Reg 29 metadata contains
+# "substantial acquisition" (→ false 'ma', 7 rows), board-meeting intimations
+# are titled "Financial Results" (→ false 'results', 7 rows), and NSE
+# circulars about MF scheme mergers / F&O dividend adjustments / NCD
+# suspensions hit ma/dividend/regulatory rules (6 rows). The text rules are
+# written for free-text announcements; these feeds bypass them.
+FEED_AUTHORITATIVE = {
+    "sast_reg29", "sast_reg31", "insider_trading", "encumbrance",
+    "board_meetings", "circulars", "shareholding_pattern", "related_party",
+    "secretarial_compliance", "investor_complaints", "share_transfers",
+    "brsr", "unitholding_patterns", "corporate_governance", "voting_results",
+    "annual_reports",
+}
+
+
 def _auditor_qualifier(hit: RuleHit, text: str) -> RuleHit:
     """Downgrade auditor_resignation when the auditor in question is
     internal/secretarial/cost and NOT statutory — those are ordinary
@@ -218,6 +246,12 @@ def classify_by_rules(feed: str, subject: str | None, description: str | None) -
     for pat, name in _ROUTINE:
         if pat.search(text):
             return RuleHit("other", 1, 0.0, 0.9, routine=True, rule=f"routine:{name}")
+
+    # structured feeds: the feed IS the classification; text rules skipped
+    if feed in FEED_AUTHORITATIVE and feed in _FEED_CATEGORY:
+        cat, mat, sent, conf, routine = _FEED_CATEGORY[feed]
+        return RuleHit(cat, mat, sent, conf, routine=routine,
+                       rule=f"feed_authoritative:{feed}")
 
     best: RuleHit | None = None
     for pat, cat, mat, sent, conf in _RULES:

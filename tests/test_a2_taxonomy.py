@@ -27,6 +27,22 @@ def test_auditor_resignation_floor_is_nine():
     assert apply_floor("auditor_resignation", 2) == 9
 
 
+def test_non_statutory_auditor_change_is_not_m9():
+    """Live bug (pulse view, 2026-08-08): internal/secretarial auditor
+    changes drew the statutory m9 floor."""
+    for text in ["Resignation and appointment of new Internal Auditor",
+                 "Resignation of Secretarial Auditor of the company",
+                 "Cost Auditor resignation for FY 2026-27"]:
+        hit = classify_by_rules("announcements", "Change in Auditor", text)
+        assert hit.category == "management_change", text
+        assert hit.materiality <= 4
+    # statutory mentioned alongside internal → still the red flag
+    hit = classify_by_rules(
+        "announcements", "Change in Auditor",
+        "Resignation of Statutory Auditor; internal auditor unchanged")
+    assert hit.category == "auditor_resignation"
+
+
 def test_board_meeting_intimation_is_not_results():
     """Live bug: intimation body text ('to consider and approve the
     financial results') matched the results rule and scored 5."""

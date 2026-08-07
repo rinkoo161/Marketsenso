@@ -43,9 +43,12 @@ log = get_logger("a2")
 
 # v2 (2026-08-07): feed priors extended to all periodic/structural feeds
 # after the live backlog showed 43% of LLM traffic was compliance filings
-# with "PERIOD END DATE" metadata. Bumping the version makes the consumer
-# reclassify everything under v2; v1 rows remain (append-only history).
-MODEL_VERSION = "a2-v2-rules+triage"
+# with "PERIOD END DATE" metadata.
+# v3 (2026-08-08): auditor_resignation restricted to STATUTORY auditors —
+# internal/secretarial/cost auditor changes were all drawing the m9 floor.
+# Each bump makes the consumer reclassify; prior-version rows remain
+# (append-only history).
+MODEL_VERSION = "a2-v3-rules+triage"
 
 # Rule hits at or above this confidence skip the model entirely.
 RULE_FINAL_CONFIDENCE = 0.75

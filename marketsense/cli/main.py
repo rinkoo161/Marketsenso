@@ -54,9 +54,47 @@ def filings(
         if not rows:
             typer.echo(f"no filings for {symbol.upper()} in the last {days}d")
             raise typer.Exit()
+        from marketsense.agents.a2_docintel.classifier import MODEL_VERSION
+        from marketsense.db.models import FilingClassification as FC
+        from sqlalchemy import select
+
+        cls = {
+            c.filing_id: c
+            for c in db.scalars(select(FC).where(
+                FC.filing_id.in_([f.id for f in rows]),
+                FC.model_version == MODEL_VERSION))
+        }
         for f in rows:
             ts = f.event_at.strftime("%d-%b %H:%M") if f.event_at else "        ?"
-            typer.echo(f"{ts}  [{f.feed:22}]  {(f.subject or '')[:90]}")
+            c = cls.get(f.id)
+            tag = f"{c.category[:18]:18} m{c.materiality}" if c else " " * 21
+            typer.echo(f"{ts}  {tag}  [{f.feed:20}]  {(f.subject or '')[:70]}")
+
+
+@app.command()
+def pulse(
+    hours: int = typer.Option(24, help="Look-back window"),
+    min_mat: int = typer.Option(5, help="Minimum materiality"),
+    limit: int = typer.Option(25),
+) -> None:
+    """High-materiality events — the Market Pulse view."""
+    from datetime import timedelta
+
+    from marketsense.db.pit import pit_classified
+
+    session, _ = _init()
+    now = datetime.now(timezone.utc)
+    with session() as db:
+        pairs = pit_classified(db, as_of=now, min_materiality=min_mat,
+                               since=now - timedelta(hours=hours), limit=limit)
+        if not pairs:
+            typer.echo(f"nothing at materiality ≥{min_mat} in the last {hours}h")
+            raise typer.Exit()
+        for f, c in pairs:
+            ts = f.event_at.strftime("%d-%b %H:%M") if f.event_at else "?"
+            sent = "+" if c.sentiment > 0.15 else "-" if c.sentiment < -0.15 else "="
+            typer.echo(f"m{c.materiality} {sent} {ts}  {(f.symbol or '?'):12} "
+                       f"{c.category[:22]:22} {(c.summary or f.subject or '')[:70]}")
 
 
 @app.command()

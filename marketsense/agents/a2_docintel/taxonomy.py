@@ -94,6 +94,12 @@ _ROUTINE = [
 # (pattern, category, materiality, sentiment, confidence)
 _RULES: list[tuple[re.Pattern, str, int, float, float]] = [
     # -- the non-negotiable floors first
+    # STATUTORY auditor only. Live finding (2026-08-08 pulse view): internal/
+    # secretarial/cost auditor changes also contain "resign…auditor" and were
+    # all scoring the m9 floor — Ola Electric's new INTERNAL auditor is not a
+    # governance red flag. The negative lookbehind-ish guard is done in
+    # classify_by_rules (_auditor_qualifier) because regex alone can't see
+    # "internal" appearing far from the match.
     (_r(r"resignation.{0,40}(statutory )?auditor|auditor.{0,30}resign"),
      "auditor_resignation", 9, -0.9, 0.95),
     (_r(r"(sebi|nclt|nclat|enforcement directorate|\bed\b|income tax|gst).{0,50}"
@@ -186,6 +192,22 @@ _FEED_CATEGORY = {
 }
 
 
+_NON_STATUTORY_AUDITOR = _r(r"(internal|secretarial|cost) auditor")
+_STATUTORY_AUDITOR = _r(r"statutory auditor")
+
+
+def _auditor_qualifier(hit: RuleHit, text: str) -> RuleHit:
+    """Downgrade auditor_resignation when the auditor in question is
+    internal/secretarial/cost and NOT statutory — those are ordinary
+    personnel changes, not the m9 red flag."""
+    if hit.category != "auditor_resignation":
+        return hit
+    if _NON_STATUTORY_AUDITOR.search(text) and not _STATUTORY_AUDITOR.search(text):
+        return RuleHit("management_change", 3, -0.1, hit.confidence,
+                       rule=hit.rule + "|non_statutory_auditor")
+    return hit
+
+
 def classify_by_rules(feed: str, subject: str | None, description: str | None) -> RuleHit | None:
     """Deterministic classification. None = no rule fired → LLM territory."""
     text = " ".join(x for x in (subject, description) if x)
@@ -200,7 +222,8 @@ def classify_by_rules(feed: str, subject: str | None, description: str | None) -
     best: RuleHit | None = None
     for pat, cat, mat, sent, conf in _RULES:
         if pat.search(text):
-            hit = RuleHit(cat, mat, sent, conf, rule=f"pattern:{pat.pattern[:40]}")
+            hit = _auditor_qualifier(
+                RuleHit(cat, mat, sent, conf, rule=f"pattern:{pat.pattern[:40]}"), text)
             if best is None or hit.materiality > best.materiality:
                 best = hit
     if best:

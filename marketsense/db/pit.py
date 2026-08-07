@@ -55,3 +55,43 @@ def pit_filings(
         q = q.where(Filing.event_at >= _require_aware(since))
     q = q.order_by(Filing.event_at.desc().nulls_last()).limit(limit)
     return list(db.scalars(q))
+
+
+def pit_classified(
+    db: Session,
+    *,
+    as_of: datetime,
+    min_materiality: int = 0,
+    symbol: str | None = None,
+    since: datetime | None = None,
+    exclude_routine: bool = True,
+    limit: int = 100,
+):
+    """(Filing, FilingClassification) pairs visible at `as_of`, ranked by
+    materiality then recency — the Market Pulse query. Both sides of the
+    join respect observed_at: a classification computed later than as_of
+    is invisible even for a filing that was already visible (a backtest
+    must see exactly the scores it would have had at the time)."""
+    from marketsense.agents.a2_docintel.classifier import MODEL_VERSION
+    from marketsense.db.models import FilingClassification as FC
+
+    as_of = _require_aware(as_of)
+    q = (
+        select(Filing, FC)
+        .join(FC, FC.filing_id == Filing.id)
+        .where(
+            Filing.observed_at <= as_of,
+            FC.observed_at <= as_of,
+            FC.model_version == MODEL_VERSION,
+            FC.materiality >= min_materiality,
+        )
+    )
+    if exclude_routine:
+        q = q.where(FC.routine.is_(False))
+    if symbol:
+        q = q.where(Filing.symbol == symbol.upper())
+    if since:
+        q = q.where(Filing.event_at >= _require_aware(since))
+    q = q.order_by(FC.materiality.desc(),
+                   Filing.event_at.desc().nulls_last()).limit(limit)
+    return list(db.execute(q).all())

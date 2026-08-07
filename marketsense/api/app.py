@@ -16,7 +16,7 @@ from sqlalchemy import func, select, text
 from marketsense import __version__
 from marketsense.db.engine import session
 from marketsense.db.models import AgentRun, FeedState, Filing, Outbox
-from marketsense.db.pit import pit_filings
+from marketsense.db.pit import pit_classified, pit_filings
 
 app = FastAPI(title="MarketSense", version=__version__)
 
@@ -93,6 +93,32 @@ def filings(symbol: str, days: int = Query(7, le=365), feed: str | None = None):
         ]
 
 
+@app.get("/api/pulse")
+def pulse(hours: int = Query(24, le=168), min_materiality: int = Query(5, ge=0, le=10),
+          limit: int = Query(50, le=200)):
+    """High-materiality classified events — Market Pulse. This is also the
+    endpoint ltp-monitor's Phase 5 poller will read for event_flag."""
+    now = datetime.now(timezone.utc)
+    with session() as db:
+        pairs = pit_classified(db, as_of=now, min_materiality=min_materiality,
+                               since=now - timedelta(hours=hours), limit=limit)
+        return [
+            {
+                "filing_id": f.id,
+                "symbol": f.symbol,
+                "category": c.category,
+                "materiality": c.materiality,
+                "sentiment": c.sentiment,
+                "confidence": c.confidence,
+                "summary": c.summary or f.subject,
+                "engine": c.engine,
+                "event_at": f.event_at,
+                "link": f.link,
+            }
+            for f, c in pairs
+        ]
+
+
 @app.get("/api/stats")
 def stats():
     with session() as db:
@@ -134,4 +160,13 @@ def metrics():
             "where observed_at > now() - interval '1 hour' group by 1"
         )).all():
             emit("http_requests_last_hour", n, f'status="{status}"')
+        # A2 health: per-engine counts + consumer lag
+        for engine, n in db.execute(text(
+            "select engine, count(*) from filing_classifications group by 1")).all():
+            emit("a2_classifications_total", n, f'engine="{engine}"')
+        lag = db.execute(text(
+            "select coalesce((select max(id) from outbox where topic='filing.received'),0)"
+            " - coalesce((select last_acked_id from consumer_offsets"
+            "   where consumer='a2' and topic='filing.received'),0)")).scalar()
+        emit("a2_consumer_lag_events", lag or 0)
     return "\n".join(lines) + "\n"

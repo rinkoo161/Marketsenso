@@ -39,6 +39,10 @@ def _ollama_generate(prompt: str) -> str:
         f"{s.ollama_url}/api/generate",
         json={"model": s.ollama_model, "prompt": prompt, "stream": False,
               "format": "json",
+              # keep the model resident between calls — without this every
+              # classification pays a cold reload (~10-20s on an 8GB Mac),
+              # which was the dominant cost of the backlog drain
+              "keep_alive": "30m",
               "options": {"temperature": 0.1, "num_predict": 400}},
         timeout=TIMEOUT,
     )

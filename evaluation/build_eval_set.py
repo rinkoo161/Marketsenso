@@ -40,6 +40,9 @@ select * from (
   (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400)
    from filings f join filing_classifications c on c.filing_id = f.id
    where not c.routine and c.engine = 'rules' and c.model_version = :mv
+   -- degraded-mode rows measure the fallback, not the live pipeline
+   and coalesce(c.rule_trace,'') not like '%no_llm%'
+   and coalesce(c.rule_trace,'') not like '%llm_unavailable%'
    order by f.id % 991 limit 50)
   union all
   (select f.id, f.feed, f.symbol, f.subject, left(f.description, 400)

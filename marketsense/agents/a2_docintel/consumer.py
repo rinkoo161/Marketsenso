@@ -16,6 +16,8 @@ log = get_logger("a2.consumer")
 
 def make_consumer(session_factory) -> Consumer:
     def handle(evt: Outbox) -> None:
+        from datetime import datetime, timedelta, timezone
+
         filing_id = evt.payload.get("filing_id")
         if not filing_id:
             return
@@ -24,7 +26,10 @@ def make_consumer(session_factory) -> Consumer:
             if filing is None:
                 log.warning("filing_missing", filing_id=filing_id)
                 return
-            row = classify_filing(db, filing)
+            # LLM only for fresh filings; the historical backlog is
+            # rules-only (see classify_filing docstring for the why)
+            fresh = filing.observed_at >= datetime.now(timezone.utc) - timedelta(days=2)
+            row = classify_filing(db, filing, allow_llm=fresh)
             db.commit()
             if row is not None and row.materiality >= 7:
                 log.info("high_materiality", filing_id=filing_id,

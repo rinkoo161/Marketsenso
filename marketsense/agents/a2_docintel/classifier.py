@@ -80,9 +80,16 @@ Reply with ONLY a JSON object:
 Quote entity values exactly as written in the text. Do not compute or convert numbers."""
 
 
-def classify_filing(db, filing: Filing) -> FilingClassification | None:
+def classify_filing(db, filing: Filing, allow_llm: bool = True) -> FilingClassification | None:
     """Classify one filing. Returns the row, or None if already done at
-    this MODEL_VERSION. Commits are the caller's job."""
+    this MODEL_VERSION. Commits are the caller's job.
+
+    allow_llm=False is the BACKLOG mode (2026-08-07): on this 8GB machine
+    Ollama runs at ~0.16 tok/s under memory pressure (40-80s per call),
+    so model-classifying a 12.7k backlog would take days. Historical
+    events therefore classify rules-only with honestly lowered confidence
+    (rule_trace notes 'backlog_no_llm'); the model serves live traffic,
+    where tens of calls a day are affordable even at that speed."""
     exists = db.scalar(
         select(FilingClassification.id).where(
             FilingClassification.filing_id == filing.id,
@@ -107,6 +114,24 @@ def classify_filing(db, filing: Filing) -> FilingClassification | None:
             engine="rules", rule_trace=hit.rule,
             model_version=MODEL_VERSION, event_at=filing.event_at,
         )
+    elif not allow_llm:
+        # backlog mode: rules or an honest low-confidence 'other'
+        if hit:
+            row = FilingClassification(
+                filing_id=filing.id, category=hit.category,
+                materiality=apply_floor(hit.category, hit.materiality),
+                sentiment=hit.sentiment, confidence=hit.confidence * 0.8,
+                routine=hit.routine, engine="rules",
+                rule_trace=hit.rule + "|backlog_no_llm",
+                model_version=MODEL_VERSION, event_at=filing.event_at,
+            )
+        else:
+            row = FilingClassification(
+                filing_id=filing.id, category="other", materiality=2,
+                sentiment=0.0, confidence=0.2, routine=False, engine="rules",
+                rule_trace="no_rule|backlog_no_llm",
+                model_version=MODEL_VERSION, event_at=filing.event_at,
+            )
     else:
         row = _classify_with_model(filing, subject, description, hit, db=db)
 

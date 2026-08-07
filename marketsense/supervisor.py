@@ -160,7 +160,16 @@ class IngestSupervisor:
                 return {"deferred": r1}
             self._eod_done_for = today
             r3 = score_all(session)
-            return {"prices": r1, "indices": r2, "scores": r3}
+            # A3: parse any new XBRL results fetched today, re-score
+            from marketsense.agents.a3_fundamental.engine import (
+                score_all as a3_score_all,
+            )
+            from marketsense.agents.a3_fundamental.loader import load_all
+
+            r4 = load_all(session)
+            r5 = a3_score_all(session)
+            return {"prices": r1, "indices": r2, "a4": r3,
+                    "a3_load": r4, "a3": r5}
 
         _record_run("a4_eod", run)
 

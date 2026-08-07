@@ -47,14 +47,43 @@ def _decay(age_days: float, agent: str) -> float:
     return 0.5 ** (age_days / HALF_LIFE[agent])
 
 
-def event_score(db, symbol: str, *, now: datetime) -> tuple[float, float, list[dict]]:
+def weighted_fusion(values: dict[str, tuple[float, float] | None],
+                    weights: dict[str, float], *, floor: float = 40.0
+                    ) -> tuple[float, float, float] | None:
+    """Shared fusion math for live A7 and the backtest (one definition —
+    two drifting copies of a weighting loop is how backtests lie).
+    values: axis -> (score 0-100, effective_confidence 0-1) or None.
+    Returns (conviction, confidence, weight_covered) or None below floor."""
+    total_w = conviction = conf_acc = 0.0
+    for axis, w in weights.items():
+        v = values.get(axis)
+        if v is None:
+            continue
+        score, conf = v
+        conviction += w * score / 100.0
+        conf_acc += w * conf
+        total_w += w
+    if total_w < floor:
+        return None
+    return (round(conviction * 100.0 / total_w, 1),
+            round(conf_acc / total_w, 2), total_w)
+
+
+def event_score(db, symbol: str, *, now: datetime,
+                visibility: str = "observed") -> tuple[float, float, list[dict]]:
     """(score 0-100, confidence, evidence) from recent classifications.
-    50 = neutral; materiality × sentiment × recency push it either way."""
+    50 = neutral; materiality × sentiment × recency push it either way.
+
+    visibility: 'observed' (live — what we had ingested by `now`) or
+    'event' (backtest over backfilled windows — visibility inferred from
+    the filing's broadcast time; the caller labels results reconstructed)."""
     from marketsense.agents.a2_docintel.classifier import (
         MODEL_VERSION as A2_VERSION,
     )
 
     since = now - timedelta(days=EVENT_WINDOW_D)
+    ts_col = (FilingClassification.observed_at if visibility == "observed"
+              else Filing.event_at)
     # current A2 version only — a filing reclassified across v3/v4/v5 must
     # count ONCE, not once per version (live bug: triplicated M&A filings
     # inflated an event score to 93)
@@ -63,16 +92,18 @@ def event_score(db, symbol: str, *, now: datetime) -> tuple[float, float, list[d
         .join(Filing, Filing.id == FilingClassification.filing_id)
         .where(Filing.symbol == symbol,
                FilingClassification.model_version == A2_VERSION,
-               FilingClassification.observed_at >= since,
+               ts_col >= since, ts_col <= now,
                FilingClassification.routine.is_(False),
                FilingClassification.materiality >= 3)
+        .add_columns(Filing.event_at)
         .order_by(FilingClassification.materiality.desc())
         .limit(10)).all()
     if not rows:
         return 50.0, 0.0, []
     push, evidence = 0.0, []
-    for c, subject in rows:
-        age = max(0.0, (now - c.observed_at).total_seconds() / 86400.0)
+    for c, subject, f_event_at in rows:
+        ts = c.observed_at if visibility == "observed" else (f_event_at or c.observed_at)
+        age = max(0.0, (now - ts).total_seconds() / 86400.0)
         w = _decay(age, "event") * (c.materiality / 10.0) * c.confidence
         push += 50.0 * w * c.sentiment
         evidence.append({"filing_id": c.filing_id, "classification_id": c.id,
@@ -208,31 +239,21 @@ def fuse_symbol(db, symbol: str, *, profile: str = "default",
     ev_score, ev_conf, ev_evidence = event_score(db, symbol, now=now)
 
     weights = PROFILES[profile]
-    axes = {
-        "fundamental": inputs.get("a3"),
-        "technical": inputs.get("a4"),
-        "flow": inputs.get("a5"),
+    values: dict[str, tuple[float, float] | None] = {
+        "event": (ev_score, ev_conf) if ev_conf > 0 else None,
     }
-    total_w = conviction = conf_acc = 0.0
-    for axis, w in weights.items():
-        if axis == "event":
-            if ev_conf > 0:
-                conviction += w * ev_score / 100.0
-                conf_acc += w * ev_conf
-                total_w += w
-            continue
-        row = axes.get(axis)
+    for axis, agent in (("fundamental", "a3"), ("technical", "a4"),
+                        ("flow", "a5")):
+        row = inputs.get(agent)
         if row is None:
+            values[axis] = None
             continue
         age = max(0.0, (now - row.as_of).total_seconds() / 86400.0)
-        agent = {"fundamental": "a3", "technical": "a4", "flow": "a5"}[axis]
-        conviction += w * row.score / 100.0
-        conf_acc += w * (row.confidence or 0.5) * _decay(age, agent)
-        total_w += w
-    if total_w < 40.0:
+        values[axis] = (row.score, (row.confidence or 0.5) * _decay(age, agent))
+    fused = weighted_fusion(values, weights)
+    if fused is None:
         return None  # not enough signal families to say anything
-    conviction = round(conviction * 100.0 / total_w, 1)
-    confidence = round(conf_acc / total_w, 2)
+    conviction, confidence, total_w = fused
 
     risk_verdict = a6.label if a6 else "unassessed"
     if risk_verdict == "hard_block":

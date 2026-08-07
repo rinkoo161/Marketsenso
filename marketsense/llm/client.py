@@ -109,7 +109,12 @@ def _generate(prompt: str, prefer_online: bool = False) -> tuple[str, str]:
     elif engine == "online":
         order = [try_online]
     elif prefer_online:
-        order = [try_online, try_local]
+        # Deep-queue mode: online ONLY. Falling back to the 45s local
+        # model here re-wedges the queue it exists to protect (measured
+        # 2026-08-08: 13k lag, every event paying a 60s local timeout
+        # while online was 401). No online → caller degrades to rules,
+        # which is fast and honest.
+        order = [try_online]
     else:
         order = [try_local, try_online]
 

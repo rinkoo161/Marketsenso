@@ -57,6 +57,12 @@ class IngestSupervisor:
         client = nse_client()
         self.poller = FeedPoller(client, session)
         self.docs = DocumentFetcher(client, session)
+        # A2 lives in the same process but consumes from the DB outbox, so
+        # a classification failure can never lose a filing — the event
+        # waits at the consumer offset (§3: agents survive each other).
+        from marketsense.agents.a2_docintel.consumer import make_consumer
+
+        self.a2 = make_consumer(session)
         self._client = client
         self._stop = False
         self._last_doc_drain = 0.0
@@ -87,6 +93,8 @@ class IngestSupervisor:
                 _record_run("securities_master", self._sync_master)
 
             _record_run("a1_poller", self.poller.run_pass)
+            _record_run("a2_classifier",
+                        lambda: {"processed": self.a2.drain(max_events=200)})
 
             if now - self._last_doc_drain > DOC_DRAIN_EVERY:
                 self._last_doc_drain = now

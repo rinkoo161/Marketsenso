@@ -151,6 +151,34 @@ class Document(Base):
     observed_at: Mapped[datetime] = _observed_at()
 
 
+class FilingClassification(Base):
+    """A2's output — append-only, versioned (§5: every score is versioned
+    with the scoring-model version so history can be attributed)."""
+
+    __tablename__ = "filing_classifications"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    filing_id: Mapped[int] = mapped_column(ForeignKey("filings.id"), index=True)
+    category: Mapped[str] = mapped_column(String(40), index=True)
+    materiality: Mapped[int] = mapped_column(Integer)          # 0-10
+    sentiment: Mapped[float]                                    # -1..+1
+    confidence: Mapped[float]                                   # 0..1
+    routine: Mapped[bool] = mapped_column(Boolean, default=False)
+    summary: Mapped[str | None] = mapped_column(Text)           # ≤40 words
+    entities: Mapped[dict | None] = mapped_column(JSONB)        # echoed source text
+    engine: Mapped[str] = mapped_column(String(16))             # rules|local|online
+    rule_trace: Mapped[str | None] = mapped_column(Text)        # which rule fired
+    model_version: Mapped[str] = mapped_column(String(64))      # prompt+model id
+    event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        # one classification per filing per model version — re-runs with a
+        # new prompt/model append rather than overwrite (honest history)
+        UniqueConstraint("filing_id", "model_version", name="uq_classification_version"),
+    )
+
+
 class FeedState(Base):
     """Poller bookkeeping per feed — schedule, validators, last outcome."""
 

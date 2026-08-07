@@ -77,12 +77,22 @@ class Consumer:
             db.flush()
         return row
 
-    def drain(self) -> int:
-        """Handle everything pending. Returns number of events processed
-        (acked or dead-lettered). Each event is its own transaction, so a
-        crash mid-batch re-delivers only the unacked tail."""
+    def drain(self, max_events: int | None = None) -> int:
+        """Handle pending events, up to max_events (None = everything).
+        Returns number processed (acked or dead-lettered). Each event is
+        its own transaction, so a crash mid-batch re-delivers only the
+        unacked tail.
+
+        max_events exists because consumers share the supervisor loop
+        with the pollers: an unbounded drain against a large backlog
+        (12.7k at A2's first start) would starve ingestion for hours.
+        A bounded drain interleaves — backlog progress every cycle, feeds
+        never more than one cycle stale."""
         processed = 0
-        while True:
+        while max_events is None or processed < max_events:
+            batch = self.batch_size
+            if max_events is not None:
+                batch = min(batch, max_events - processed)
             with self.session_factory() as db:
                 offset = self._offset_row(db)
                 events = list(
@@ -90,7 +100,7 @@ class Consumer:
                         select(Outbox)
                         .where(Outbox.topic == self.topic, Outbox.id > offset.last_acked_id)
                         .order_by(Outbox.id)
-                        .limit(self.batch_size)
+                        .limit(batch)
                     )
                 )
                 db.commit()

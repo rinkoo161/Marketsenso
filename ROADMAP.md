@@ -7,17 +7,10 @@ section per release; update PENDING WORK as part of the change, not after.
 
 ## PENDING WORK
 
-**Phase 1 remaining**
-- 48h soak run in progress — RESTARTED 2026-08-05 00:49 IST after the two
-  v0.1.1 fixes (the 48h clock counts from the restart → due ~Aug 7 00:49).
-  Processes: `nohup .venv/bin/ms run` + `nohup .venv/bin/ms serve`, logs in
-  `logs/soak-*.log`. Watch the first market open (09:15 IST) — it is the first
-  P0-cadence test under real announcement load.
-- Evidence report at soak end, against the §9 acceptance gate: duplicate count
-  (target 0 — check `select content_hash, count(*) from filings group by 1
-  having count(*)>1`), unhandled-403 count (target 0 — `http_audit`),
-  per-day coverage via `ms verify`, budget consumption profile. Phase 2 code
-  does not start until this report exists.
+**Phase 1 — COMPLETE.** 48h soak PASSED 2026-08-07 13:05 IST (56h+ continuous
+at report time). Evidence: `docs/phase1-evidence.md` — 0 dupes / 0 auth
+failures / 100% coverage both full days / 0 agent-run errors across 48k runs.
+The ingest + API processes stay running as the production baseline.
 - Backfill currently covers the announcements API only. Board meetings /
   corporate actions / shareholding JSON APIs are enrichment, not gaps — RSS
   covers them live; extend `backfill.py` per-endpoint as Phase 3 needs them.

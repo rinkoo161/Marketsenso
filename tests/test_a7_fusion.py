@@ -53,12 +53,20 @@ def test_high_scores_clear_risk_is_buy_with_levels(db_factory):
     with db_factory() as db:
         _full_stack(db, "GOODCO")
         db.commit()
-        r = fuse_symbol(db, "GOODCO", now=NOW)
+        r = fuse_symbol(db, "GOODCO", now=NOW)                    # default
+        r_short = fuse_symbol(db, "GOODCO", profile="short", now=NOW)
     assert r["stance"] in ("buy", "accumulate")
-    assert r["invalidation"] == 94.0
+    # p3 geometry: default stop = close - 3*ATR = 100 - 9 = 91
+    assert r["invalidation"] == 91.0
     assert r["target_low"] > 100.0 > r["entry_low"]
     assert r["size_pct"] is not None
     assert r["thesis"]["evidence"]["score_ids"]  # traceable by construction
+    # horizons must NOT share geometry (user finding 2026-08-09):
+    # short stop 1.5*ATR = 95.5, tighter than positional's 91; targets differ
+    assert r_short["invalidation"] == 95.5
+    assert r_short["target_high"] < r["target_high"]
+    # same rupee risk → wider stop sizes smaller
+    assert r["size_pct"] < r_short["size_pct"]
 
 
 def test_missing_families_renormalise_or_refuse(db_factory):

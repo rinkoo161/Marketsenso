@@ -208,34 +208,47 @@ def _stance(conviction: float, risk_verdict: str) -> str:
     return "exit"
 
 
-def _levels(a4: Score | None) -> dict:
+def _levels(a4: Score | None, profile: str = "default") -> dict:
+    """Per-horizon geometry (p3): the same ATR feeds different stop
+    multiples and reward ratios per profile — a 1-5d trade and a 3-6m
+    position must not share targets (user finding, 2026-08-09)."""
+    from marketsense.agents.a7_fusion.profiles import levels_for
+
     if a4 is None or not a4.components:
         return {}
     c = a4.components
-    close, atr, stop = c.get("close"), c.get("atr14"), c.get("atr_stop")
-    if not close or not atr or not stop:
+    close, atr = c.get("close"), c.get("atr14")
+    if not close or not atr:
         return {}
+    g = levels_for(profile)
+    stop = round(close - g["stop_atr"] * atr, 2)
     risk = close - stop
     return {
         "entry_low": round(close - 0.5 * atr, 2),
         "entry_high": round(close + 0.25 * atr, 2),
-        "target_low": round(close + 1.5 * risk, 2),
-        "target_high": round(close + 2.5 * risk, 2),
+        "target_low": round(close + g["t_low"] * risk, 2),
+        "target_high": round(close + g["t_high"] * risk, 2),
         "invalidation": stop,
-        "level_basis": f"close {close}, ATR14 {atr}, stop = close - 2*ATR "
-                       f"(risk/reward 1.5-2.5x)",
+        "level_basis": f"close {close}, ATR14 {atr}; {profile}: stop = "
+                       f"close - {g['stop_atr']}*ATR, targets "
+                       f"{g['t_low']}-{g['t_high']}x risk",
     }
 
 
-def _size_pct(a4: Score | None, risk_verdict: str) -> float | None:
-    """Volatility-adjusted: risking 1% of capital to the stop.
-    size% = 1% / (2*ATR/close). Penalty halves it. Capped at 10%."""
+def _size_pct(a4: Score | None, risk_verdict: str,
+              profile: str = "default") -> float | None:
+    """Volatility-adjusted: risking 1% of capital to THIS profile's stop
+    (wider positional stop → smaller size, same rupee risk). Penalty
+    halves it. Capped at 10%."""
+    from marketsense.agents.a7_fusion.profiles import levels_for
+
     if a4 is None or not a4.components:
         return None
     close, atr = a4.components.get("close"), a4.components.get("atr14")
     if not close or not atr:
         return None
-    size = min(10.0, 1.0 / (2.0 * atr / close))
+    stop_atr = levels_for(profile)["stop_atr"]
+    size = min(10.0, 1.0 / (stop_atr * atr / close))
     if risk_verdict == "penalty":
         size /= 2.0
     return round(size, 1)
@@ -243,7 +256,8 @@ def _size_pct(a4: Score | None, risk_verdict: str) -> float | None:
 
 def _thesis(symbol: str, inputs: dict, ev_evidence: list[dict],
             a6: Score | None, conviction: float,
-            weights: dict[str, float] | None = None) -> dict:
+            weights: dict[str, float] | None = None,
+            stop: float | None = None) -> dict:
     bullets_for: list[str] = []
     bullets_against: list[str] = []
 
@@ -290,10 +304,11 @@ def _thesis(symbol: str, inputs: dict, ev_evidence: list[dict],
         for reason in (a6.components or {}).get("penalties", [])[:3]:
             bullets_against.append(f"A6 penalty: {reason} [score#{a6.id}]")
 
-    # the single thing that would change the view
-    if a4 and (a4.components or {}).get("atr_stop"):
-        changer = (f"a close below {a4.components['atr_stop']} "
-                   f"(2xATR stop) invalidates the technical basis")
+    # the single thing that would change the view — cite THIS profile's
+    # stop, not A4's raw 2xATR (levels are per-horizon since p3)
+    if a4 and stop is not None:
+        changer = (f"a close below {stop} (this profile's ATR stop) "
+                   f"invalidates the technical basis")
     elif a3:
         changer = "next quarterly result reversing the fundamental trend"
     else:
@@ -347,9 +362,10 @@ def fuse_symbol(db, symbol: str, *, profile: str = "default",
         conviction = min(conviction, 55.0)
 
     stance = _stance(conviction, risk_verdict)
-    levels = _levels(inputs.get("a4"))
+    levels = _levels(inputs.get("a4"), profile)
     thesis = _thesis(symbol, {**inputs, **({"a6": a6} if a6 else {})},
-                     ev_evidence, a6, conviction, weights=weights)
+                     ev_evidence, a6, conviction, weights=weights,
+                     stop=levels.get("invalidation"))
     thesis["weights_covered_pct"] = total_w
     thesis["event_score"] = ev_score
 
@@ -357,7 +373,7 @@ def fuse_symbol(db, symbol: str, *, profile: str = "default",
         "symbol": symbol, "profile": profile, "stance": stance,
         "conviction": conviction, "confidence": confidence,
         "horizon": HORIZON[profile], "risk_verdict": risk_verdict,
-        "size_pct": _size_pct(inputs.get("a4"), risk_verdict),
+        "size_pct": _size_pct(inputs.get("a4"), risk_verdict, profile),
         "thesis": thesis, **levels,
     }
 

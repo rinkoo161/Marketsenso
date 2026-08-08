@@ -2,7 +2,30 @@
 PROFILES_VERSION — signals carry it, and historical attribution depends
 on knowing which weights produced which stance."""
 
-PROFILES_VERSION = "p2"  # p2 (2026-08-08): + short profile (user request)
+# p2 (2026-08-08): + short profile (user request)
+# p3 (2026-08-09): per-horizon level geometry — short and positional were
+# sharing identical ATR targets/stops, which the user correctly flagged
+# as invalid (a 5-day target cannot equal a 6-month target)
+PROFILES_VERSION = "p3"
+
+# Level geometry per profile: stop = stop_atr × ATR below close;
+# target zone = [t_low, t_high] × risk (risk = close − stop).
+# Short: tight 1.5×ATR leash, modest 1.2–2R take-profit — day-scale
+# noise kills wide stops and 3-month targets alike.
+# Positional: 3×ATR room to hold through weeks, 2–3.5R targets.
+LEVELS = {
+    "short":   {"stop_atr": 1.5, "t_low": 1.2, "t_high": 2.0},
+    "default": {"stop_atr": 3.0, "t_low": 2.0, "t_high": 3.5},
+}
+# profiles without an explicit entry inherit by horizon character
+_LEVELS_FALLBACK = {
+    "swing": "short", "event_driven": "short", "momentum": "default",
+    "value": "default", "quality": "default", "positional": "default",
+}
+
+
+def levels_for(profile: str) -> dict:
+    return LEVELS.get(profile) or LEVELS[_LEVELS_FALLBACK.get(profile, "default")]
 
 # weights over (fundamental, technical, flow, event) — must sum to 100
 PROFILES: dict[str, dict[str, float]] = {

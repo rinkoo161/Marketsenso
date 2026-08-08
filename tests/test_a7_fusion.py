@@ -28,8 +28,10 @@ def _full_stack(db, symbol, a3=80, a4=75, a5=70, a6_label="clear"):
     _score(db, "a3", symbol, a3, components={"quarters_available": 8,
                                              "basis": "consolidated",
                                              "rev_yoy": 0.2, "flags": []})
+    # atr 5 (not 3): with atr 3 both profiles' position sizes hit the 10%
+    # cap and the size-ordering assertion cannot discriminate
     _score(db, "a4", symbol, a4, label="uptrend",
-           components={"close": 100.0, "atr14": 3.0, "atr_stop": 94.0,
+           components={"close": 100.0, "atr14": 5.0, "atr_stop": 90.0,
                        "sma200": 90.0, "rsi14": 60.0})
     _score(db, "a5", symbol, a5, label="accumulation")
     db.add(Score(agent="a6", symbol=symbol, score=100 if a6_label == "clear" else 0,
@@ -56,14 +58,14 @@ def test_high_scores_clear_risk_is_buy_with_levels(db_factory):
         r = fuse_symbol(db, "GOODCO", now=NOW)                    # default
         r_short = fuse_symbol(db, "GOODCO", profile="short", now=NOW)
     assert r["stance"] in ("buy", "accumulate")
-    # p3 geometry: default stop = close - 3*ATR = 100 - 9 = 91
-    assert r["invalidation"] == 91.0
+    # p3 geometry: default stop = close - 3*ATR = 100 - 15 = 85
+    assert r["invalidation"] == 85.0
     assert r["target_low"] > 100.0 > r["entry_low"]
     assert r["size_pct"] is not None
     assert r["thesis"]["evidence"]["score_ids"]  # traceable by construction
     # horizons must NOT share geometry (user finding 2026-08-09):
-    # short stop 1.5*ATR = 95.5, tighter than positional's 91; targets differ
-    assert r_short["invalidation"] == 95.5
+    # short stop 1.5*ATR = 92.5, tighter than positional's 85; targets differ
+    assert r_short["invalidation"] == 92.5
     assert r_short["target_high"] < r["target_high"]
     # same rupee risk → wider stop sizes smaller
     assert r["size_pct"] < r_short["size_pct"]

@@ -72,6 +72,10 @@ main{padding:16px 18px;max-width:1500px;margin:0 auto}
 .tbl tbody tr:hover{background:var(--panel2)}
 th.sortable{cursor:pointer;user-select:none}
 th.sortable:hover{color:var(--text)}
+.searchbar{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.searchbar input{flex:1;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;color:var(--text);font:inherit;padding:8px 12px;outline:none}
+.searchbar input:focus{border-color:var(--accent)}
 /* screener-style ratio strip: wrapping label/value pairs */
 .ratios{display:flex;flex-wrap:wrap;gap:4px 22px;margin:6px 0 12px}
 .ratio{display:flex;flex-direction:column;line-height:1.35}
@@ -229,59 +233,96 @@ const SORT_VAL = {
   reco: s => reco(s).label,
 };
 
-function renderSignals() {
-  const sigs = [...(state.signals || [])];
+let FILTER = '';
+function signalRowsHtml() {
+  const q = FILTER.trim().toUpperCase();
+  const sigs = (state.signals || []).filter(s =>
+    !q || s.symbol.toUpperCase().includes(q));
   const val = SORT_VAL[SORT.key] || SORT_VAL.conviction;
   sigs.sort((a, b) => {
     const x = val(a), y = val(b);
     return (x < y ? -1 : x > y ? 1 : 0) * SORT.dir;
   });
+  return sigs;
+}
+
+function rowHtml(s) {
+  const r = reco(s);
+  const news = s.news_flag;
+  return `
+  <tr class="sigrow ${SELECTED===s.symbol?'sel':''}" data-sym="${esc(s.symbol)}">
+    <td><span class="chip ${r.cls}" ${r.why?`title="${esc(r.why)}"`:''}>${r.label}</span></td>
+    <td class="stance-${s.stance}">${esc(s.stance)}</td>
+    <td class="num"><span class="convbar" style="width:${Math.max(4,s.conviction*0.45)}px"></span>${fmt(s.conviction)}</td>
+    <td class="num muted">${s.confidence!=null?fmt(100*s.confidence,0)+'%':'–'}</td>
+    <td><b>${esc(s.symbol)}</b></td>
+    <td class="num ${s.upside_pct>0?'up':s.upside_pct<0?'dn':'muted'}">${s.upside_pct!=null?fmt(s.upside_pct,1)+'%':'–'}</td>
+    <td>${news?`<span class="dn" title="${esc(news.category)} m${news.materiality}, ${news.days_ago}d ago">▼ ${esc(news.category).slice(0,14)}</span>`:'<span class="muted">–</span>'}</td>
+    <td><span class="chip ${s.risk_verdict==='clear'?'':'dn'}">${esc(s.risk_verdict)}</span></td>
+    <td class="num">${s.size_pct??'–'}%</td>
+    <td class="muted">${esc(s.horizon||'')}</td>
+    <td class="num muted">${s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}</td>
+    <td class="num muted">${s.target&&s.target[0]!=null?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}</td>
+    <td class="num">${fmt(s.invalidation,1)}</td>
+  </tr>`;
+}
+
+function renderSignals() {
+  const sigs = signalRowsHtml();
   const arrow = (k) => SORT.key === k ? (SORT.dir < 0 ? ' ▾' : ' ▴') : '';
   const th = (k, label, num) =>
     `<th class="${num?'num ':''}sortable" data-key="${k}">${label}${arrow(k)}</th>`;
-
-  const rows = sigs.map(s => {
-    const r = reco(s);
-    const news = s.news_flag;
-    return `
-    <tr class="sigrow ${SELECTED===s.symbol?'sel':''}" data-sym="${esc(s.symbol)}">
-      <td><span class="chip ${r.cls}" ${r.why?`title="${esc(r.why)}"`:''}>${r.label}</span></td>
-      <td class="stance-${s.stance}">${esc(s.stance)}</td>
-      <td class="num"><span class="convbar" style="width:${Math.max(4,s.conviction*0.45)}px"></span>${fmt(s.conviction)}</td>
-      <td class="num muted">${s.confidence!=null?fmt(100*s.confidence,0)+'%':'–'}</td>
-      <td><b>${esc(s.symbol)}</b></td>
-      <td class="num ${s.upside_pct>0?'up':s.upside_pct<0?'dn':'muted'}">${s.upside_pct!=null?fmt(s.upside_pct,1)+'%':'–'}</td>
-      <td>${news?`<span class="dn" title="${esc(news.category)} m${news.materiality}, ${news.days_ago}d ago">▼ ${esc(news.category).slice(0,14)}</span>`:'<span class="muted">–</span>'}</td>
-      <td><span class="chip ${s.risk_verdict==='clear'?'':'dn'}">${esc(s.risk_verdict)}</span></td>
-      <td class="num">${s.size_pct??'–'}%</td>
-      <td class="muted">${esc(s.horizon||'')}</td>
-      <td class="num muted">${s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}</td>
-      <td class="num muted">${s.target&&s.target[0]!=null?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}</td>
-      <td class="num">${fmt(s.invalidation,1)}</td>
-    </tr>`;
-  }).join('');
+  const rows = sigs.map(rowHtml).join('');
   $('#main').innerHTML = `
     <div class="split">
-      <div class="master card" style="padding:0">
-        <table class="tbl"><thead><tr>
-          ${th('reco','reco')}${th('stance','stance')}
-          ${th('conviction','conviction',1)}${th('confidence','conf',1)}
-          ${th('symbol','symbol')}${th('upside','upside',1)}${th('news','news')}
-          ${th('risk','risk')}${th('size','size',1)}${th('horizon','horizon')}
-          ${th('entry','entry',1)}${th('target','target',1)}${th('stop','stop',1)}
-        </tr></thead><tbody>${rows}</tbody></table>
+      <div style="flex:1 1 auto;min-width:0">
+        <div class="searchbar">
+          <input id="symSearch" type="text" placeholder="🔎 filter signals — or type any symbol and press Enter (e.g. JSWENERGY)"
+                 value="${esc(FILTER)}" autocomplete="off" spellcheck="false">
+          <span class="muted num" id="matchCount">${sigs.length} shown</span>
+        </div>
+        <div class="master card" style="padding:0">
+          <table class="tbl"><thead><tr>
+            ${th('reco','reco')}${th('stance','stance')}
+            ${th('conviction','conviction',1)}${th('confidence','conf',1)}
+            ${th('symbol','symbol')}${th('upside','upside',1)}${th('news','news')}
+            ${th('risk','risk')}${th('size','size',1)}${th('horizon','horizon')}
+            ${th('entry','entry',1)}${th('target','target',1)}${th('stop','stop',1)}
+          </tr></thead><tbody id="sigbody">${rows}</tbody></table>
+          ${!rows ? `<div class="card muted" style="border:none">no signal matches
+            “${esc(FILTER)}” — press Enter to open it as a company anyway</div>` : ''}
+        </div>
       </div>
       <div class="rail" id="detail">
-        <div class="card muted">select a signal ←</div>
+        <div class="card muted">select a signal ← or search ↖</div>
       </div>
     </div>`;
-  document.querySelectorAll('th.sortable').forEach(h => h.onclick = () => {
-    const k = h.dataset.key;
-    SORT = {key: k, dir: SORT.key === k ? -SORT.dir : -1};
-    renderSignals();
-  });
-  document.querySelectorAll('.sigrow').forEach(r => r.onclick =
-    () => selectCompany(r.dataset.sym));
+  const wireRows = () => {
+    document.querySelectorAll('th.sortable').forEach(h => h.onclick = () => {
+      const k = h.dataset.key;
+      SORT = {key: k, dir: SORT.key === k ? -SORT.dir : -1};
+      redrawBody();
+    });
+    document.querySelectorAll('#sigbody .sigrow').forEach(r => r.onclick =
+      () => selectCompany(r.dataset.sym));
+  };
+  /* filter re-renders ONLY the tbody so the input keeps focus */
+  const redrawBody = () => {
+    const fresh = signalRowsHtml();
+    $('#sigbody').innerHTML = fresh.map(rowHtml).join('');
+    $('#matchCount').textContent = fresh.length + ' shown';
+    document.querySelectorAll('#sigbody .sigrow').forEach(r => r.onclick =
+      () => selectCompany(r.dataset.sym));
+  };
+  const inp = $('#symSearch');
+  inp.oninput = () => { FILTER = inp.value; redrawBody(); };
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter' && inp.value.trim()) {
+      /* exact-symbol open: works for ANY tracked company, ranked or not */
+      selectCompany(inp.value.trim().toUpperCase());
+    }
+  };
+  wireRows();
   if (SELECTED) selectCompany(SELECTED);
 }
 
@@ -484,7 +525,7 @@ async function refresh() {
       [state.pulse, state.alerts] = await Promise.all(
         [j('/api/pulse?hours=48&min_materiality=5&limit=60'), j('/api/alerts?limit=20')]);
     } else if (TAB === 'signals') {
-      state.signals = await j('/api/signals?limit=100');
+      state.signals = await j('/api/signals?limit=200');
     } else if (TAB === 'performance') {
       state.performance = await j('/api/performance');
     } else if (TAB === 'health') {

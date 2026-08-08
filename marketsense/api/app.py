@@ -131,7 +131,7 @@ def pulse(hours: int = Query(24, le=168), min_materiality: int = Query(5, ge=0, 
 
 @app.get("/api/signals")
 def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
-            limit: int = Query(50, le=1000)):
+            limit: int = Query(50, le=1000), profile: str = Query("default")):
     """Latest signal per symbol, ranked by conviction. Suppressed rows
     included — A6 vetoes are information, not absence. Each row carries
     `news_flag`: the freshest adverse high-materiality event (≤7d,
@@ -144,18 +144,15 @@ def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
     with session() as db:
         rows = list(db.scalars(
             select(Signal).order_by(Signal.as_of.desc()).limit(2000)))
-        # latest per symbol, PREFERRING the default profile — the short
-        # profile re-issues later in the same EOD run and was shadowing
-        # default rows (JSWENERGY showed short/hold 59.8 while its default
-        # accumulate 64.7 was the intended list entry). Company detail
-        # shows every profile regardless.
+        # latest per symbol WITHIN the requested profile — mixing profiles
+        # in one list confused both directions (short rows shadowed
+        # default; then preferring default hid every 1-5d signal, which
+        # the user explicitly asked for). The UI offers a horizon toggle.
         latest: dict[str, object] = {}
         for s in rows:  # rows are newest-first
-            cur = latest.get(s.symbol)
-            if cur is None:
-                latest[s.symbol] = s
-            elif s.profile == "default" and cur.profile != "default":
-                latest[s.symbol] = s  # default outranks other profiles
+            if s.profile != profile:
+                continue
+            latest.setdefault(s.symbol, s)
         candidates = [s for s in latest.values()
                       if s.conviction >= min_conviction
                       and (not stance or s.stance == stance)]

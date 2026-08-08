@@ -76,6 +76,11 @@ th.sortable:hover{color:var(--text)}
 .coname{font-size:22px;font-weight:700;color:var(--text);
   letter-spacing:-.01em;font-family:'Roboto Mono',monospace}
 .searchbar{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.ptoggle{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;
+  overflow:hidden;flex-shrink:0}
+.ptoggle button{background:none;border:none;color:var(--dim);font:inherit;
+  padding:8px 14px;cursor:pointer;font-weight:500}
+.ptoggle button.on{background:var(--accent);color:#fff}
 .searchbar input{flex:1;background:var(--panel);border:1px solid var(--line);
   border-radius:8px;color:var(--text);font:inherit;padding:8px 12px;outline:none}
 .searchbar input:focus{border-color:var(--accent)}
@@ -240,6 +245,7 @@ const SORT_VAL = {
 };
 
 let FILTER = '';
+let PROFILE = 'default';   // horizon toggle: default (3-6m) | short (1-5d)
 function signalRowsHtml() {
   const q = FILTER.trim().toUpperCase();
   const sigs = (state.signals || []).filter(s =>
@@ -283,6 +289,10 @@ function renderSignals() {
     <div class="split">
       <div style="flex:1 1 auto;min-width:0">
         <div class="searchbar">
+          <div class="ptoggle">
+            <button data-prof="default" class="${PROFILE==='default'?'on':''}">Positional · 3-6m</button>
+            <button data-prof="short" class="${PROFILE==='short'?'on':''}">Short · 1-5d</button>
+          </div>
           <input id="symSearch" type="text" placeholder="🔎 filter signals — or type any symbol and press Enter (e.g. JSWENERGY)"
                  value="${esc(FILTER)}" autocomplete="off" spellcheck="false">
           <span class="muted num" id="matchCount">${sigs.length} shown</span>
@@ -312,6 +322,11 @@ function renderSignals() {
     document.querySelectorAll('#sigbody .sigrow').forEach(r => r.onclick =
       () => selectCompany(r.dataset.sym, {scroll: true}));
   };
+  document.querySelectorAll('.ptoggle button').forEach(b => b.onclick = async () => {
+    PROFILE = b.dataset.prof;
+    state.signals = await j('/api/signals?limit=1000&profile=' + PROFILE);
+    renderSignals();
+  });
   const inp = $('#symSearch');
   inp.oninput = () => { FILTER = inp.value; redrawSignalsBody(); };
   inp.onkeydown = (e) => {
@@ -542,7 +557,7 @@ async function refresh() {
       [state.pulse, state.alerts] = await Promise.all(
         [j('/api/pulse?hours=48&min_materiality=5&limit=60'), j('/api/alerts?limit=20')]);
     } else if (TAB === 'signals') {
-      state.signals = await j('/api/signals?limit=1000');
+      state.signals = await j('/api/signals?limit=1000&profile=' + PROFILE);
       /* background tick: refresh data IN PLACE — full re-render resets
          scroll and re-jumps to the detail (user-reported, 2026-08-09) */
       if ($('#sigbody')) { redrawSignalsBody(); $('#clock').textContent =

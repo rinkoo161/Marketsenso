@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8100  # ltp-monitor owns 8000
 
+    # A8 alert channels — empty = disabled; alerts always land in the
+    # alerts table regardless
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    alert_webhook_url: str = ""
+    # ceiling on high-severity pushes per hour; overflow batches into the
+    # next digest instead of spamming
+    alert_max_high_per_hour: int = 12
+
     @field_validator("data_dir")
     @classmethod
     def _expand(cls, v: Path) -> Path:

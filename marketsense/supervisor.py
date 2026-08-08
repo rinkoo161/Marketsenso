@@ -64,7 +64,15 @@ class IngestSupervisor:
         from marketsense.agents.a2_docintel.consumer import make_consumer
 
         self.a2 = make_consumer(session)
+        from marketsense.agents.a8_alerts.engine import (
+            make_classified_consumer,
+            make_signal_consumer,
+        )
+
+        self.a8_classified = make_classified_consumer(session)
+        self.a8_signals = make_signal_consumer(session)
         self._client = client
+        self._digest_done: dict[str, object] = {}
         self._stop = False
         self._last_doc_drain = 0.0
         self._last_master_sync = 0.0
@@ -96,6 +104,10 @@ class IngestSupervisor:
             _record_run("a1_poller", self.poller.run_pass)
             _record_run("a2_classifier",
                         lambda: {"processed": self.a2.drain(max_events=1000)})
+            _record_run("a8_alerts", lambda: {
+                "classified": self.a8_classified.drain(max_events=500),
+                "signals": self.a8_signals.drain(max_events=500)})
+            self._maybe_digest()
 
             if now - self._last_doc_drain > DOC_DRAIN_EVERY:
                 self._last_doc_drain = now
@@ -127,6 +139,25 @@ class IngestSupervisor:
         from marketsense.agents.a1_ingestion.backfill import backfill_announcements
 
         return backfill_announcements(session, self._client, days=2)
+
+    def _maybe_digest(self) -> None:
+        """Pre-open 08:15 / post-close 16:30 IST, once per trading day."""
+        from marketsense.core.clock import now_ist
+
+        ist = now_ist()
+        if not calendar.is_trading_day(ist.date()):
+            return
+        for kind, (h, m) in (("pre_open", (8, 15)), ("post_close", (16, 30))):
+            if (ist.hour, ist.minute) >= (h, m) and \
+                    self._digest_done.get(kind) != ist.date():
+                self._digest_done[kind] = ist.date()
+
+                def run(k=kind):
+                    from marketsense.agents.a8_alerts.engine import digest
+
+                    return digest(session, kind=k)
+
+                _record_run(f"a8_digest_{kind}", run)
 
     def _maybe_eod(self, now_mono: float) -> None:
         """Once per trading day after 18:45 IST: bhavcopy + indices +
@@ -184,9 +215,13 @@ class IngestSupervisor:
             from marketsense.agents.a7_fusion.engine import issue_all
 
             r9 = issue_all(session)
+            # §7.7 — measure signal performance nightly as prices land
+            from marketsense.performance.tracker import measure
+
+            r10 = measure(session)
             return {"prices": r1, "indices": r2, "a4": r3,
                     "a3_load": r4, "a3": r5, "a5_ingest": r6, "a5": r7,
-                    "a6": r8, "a7": r9}
+                    "a6": r8, "a7": r9, "performance": r10}
 
         _record_run("a4_eod", run)
 

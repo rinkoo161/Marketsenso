@@ -151,6 +151,32 @@ def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
     ]
 
 
+@app.get("/api/performance")
+def performance():
+    """§7.7 — observed signal performance by stance × window."""
+    from marketsense.performance.tracker import summary
+
+    return summary(session)
+
+
+@app.get("/api/alerts")
+def alerts(severity: str | None = None, limit: int = Query(50, le=200)):
+    from marketsense.db.models import Alert
+    from sqlalchemy import select
+
+    with session() as db:
+        q = select(Alert).order_by(Alert.observed_at.desc()).limit(limit)
+        if severity:
+            q = q.where(Alert.severity == severity)
+        return [
+            {"id": a.id, "severity": a.severity, "category": a.category,
+             "symbol": a.symbol, "message": a.message,
+             "evidence": a.evidence_ref, "channels": a.channels,
+             "at": a.observed_at}
+            for a in db.scalars(q)
+        ]
+
+
 @app.get("/api/stats")
 def stats():
     with session() as db:

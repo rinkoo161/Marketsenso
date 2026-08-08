@@ -433,6 +433,49 @@ class Signal(Base):
     )
 
 
+# ================================================ phase 5: performance
+
+class SignalPerformance(Base):
+    """Forward returns per issued signal, measured as prices ARRIVE (the
+    observed corpus — not reconstructed). One row per signal per window,
+    written only once the window has fully elapsed."""
+
+    __tablename__ = "signal_performance"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    signal_id: Mapped[int] = mapped_column(ForeignKey("signals.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    stance: Mapped[str] = mapped_column(String(12))
+    profile: Mapped[str] = mapped_column(String(24))
+    conviction: Mapped[float]
+    window: Mapped[str] = mapped_column(String(8))       # 1w | 4w | 12w
+    entry_price: Mapped[float]                            # close on signal day
+    exit_price: Mapped[float]
+    ret: Mapped[float]                                    # simple return
+    index_ret: Mapped[float | None]                       # Nifty 500 same window
+    excess: Mapped[float | None]
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        UniqueConstraint("signal_id", "window", name="uq_perf_signal_window"),
+    )
+
+
+class Alert(Base):
+    """A8's delivery log — every alert sent (or suppressed), append-only."""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    severity: Mapped[str] = mapped_column(String(8))     # high | medium | low
+    category: Mapped[str] = mapped_column(String(32))
+    symbol: Mapped[str | None] = mapped_column(String(32), index=True)
+    message: Mapped[str] = mapped_column(Text)
+    evidence_ref: Mapped[dict | None] = mapped_column(JSONB)
+    channels: Mapped[dict | None] = mapped_column(JSONB)  # {channel: status}
+    observed_at: Mapped[datetime] = _observed_at()
+
+
 # ============================================================ ops tables
 
 class AgentRun(Base):

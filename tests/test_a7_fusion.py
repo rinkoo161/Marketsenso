@@ -93,6 +93,12 @@ def test_event_score_counts_each_filing_once_across_versions(db_factory):
                 confidence=0.9, engine="rules", model_version=ver,
                 event_at=NOW - timedelta(days=1)))
         db.commit()
+        # pin observed_at inside the frozen window — the server default is
+        # wall-clock and drifted past the fixture NOW at midnight UTC
+        from sqlalchemy import text as _t
+        db.execute(_t("update filing_classifications set observed_at = :o"),
+                   {"o": NOW - timedelta(days=1)})
+        db.commit()
         score, conf, evidence = event_score(db, "DUPCO", now=NOW)
     assert len(evidence) == 1  # one filing, one entry — not one per version
 
@@ -120,6 +126,10 @@ def test_peer_event_propagates_within_industry(db_factory):
             filing_id=f.id, category="regulatory_action", materiality=8,
             sentiment=-0.8, confidence=0.9, engine="rules",
             model_version=A2_V, event_at=NOW - timedelta(days=1)))
+        db.commit()
+        from sqlalchemy import text as _t
+        db.execute(_t("update filing_classifications set observed_at = :o"),
+                   {"o": NOW - timedelta(days=1)})
         db.commit()
         s1, c1, ev1 = peer_event_score(db, "PHARMA1", now=NOW)
         s2, c2, ev2 = peer_event_score(db, "STEELCO", now=NOW)

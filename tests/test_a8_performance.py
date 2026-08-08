@@ -17,7 +17,7 @@ def test_alert_logged_even_with_channels_disabled(db_factory, monkeypatch):
     # configured", then the operator configured real Telegram credentials
     # in .env and the suite sent a live test alert to their phone
     # (2026-08-09). Tests never touch real channels again.
-    monkeypatch.setattr(a8, "_send_telegram", lambda text: "disabled")
+    monkeypatch.setattr(a8, "_send_telegram", lambda text, html=False: "disabled")
     monkeypatch.setattr(a8, "_send_webhook", lambda p: "disabled")
     with db_factory() as db:
         a8.raise_alert(db, severity="high", category="auditor_resignation",
@@ -31,7 +31,7 @@ def test_alert_logged_even_with_channels_disabled(db_factory, monkeypatch):
 
 
 def test_rate_limit_suppresses_after_budget(db_factory, monkeypatch):
-    monkeypatch.setattr(a8, "_send_telegram", lambda text: "sent")
+    monkeypatch.setattr(a8, "_send_telegram", lambda text, html=False: "sent")
     monkeypatch.setattr(a8, "_send_webhook", lambda p: "disabled")
     from marketsense.core.config import settings
 

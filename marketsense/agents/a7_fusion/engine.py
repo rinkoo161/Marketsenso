@@ -308,7 +308,12 @@ def _thesis(symbol: str, inputs: dict, ev_evidence: list[dict],
 
     # the single thing that would change the view — cite THIS profile's
     # stop, not A4's raw 2xATR (levels are per-horizon since p3)
-    if a4 and stop is not None:
+    a6_blocks = (a6.components or {}).get("hard_blocks", []) if a6 else []
+    if a6_blocks:
+        # a suppressed view changes when the BLOCK lifts, not on news
+        changer = (f"A6 clearing its block would restore scoring "
+                   f"(currently: {a6_blocks[0]})")
+    elif a4 and stop is not None:
         changer = (f"a close below {stop} (this profile's ATR stop) "
                    f"invalidates the technical basis")
     elif a3:

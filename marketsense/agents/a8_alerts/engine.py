@@ -104,9 +104,14 @@ def format_event_push(db, p: dict) -> str:
         lines.append(f"<b>Standing view:</b> {sig.stance.capitalize()} "
                      f"(conviction {sig.conviction:g}, "
                      f"confidence {round(100 * (sig.confidence or 0))}%)")
-        if sig.stance in ("buy", "accumulate") and sent < -0.3:
+        if sent < -0.3 and sig.stance in ("buy", "accumulate"):
             lines.append("⚠️ <b>Adverse news against a long stance — "
                          "review before acting</b>")
+        elif sent < -0.3 and sig.stance == "hold":
+            # same rule the dashboard's reco column applies: hold +
+            # adverse news = sell risk
+            lines.append("⚠️ <b>Sell risk — adverse news while holding; "
+                         "review the position</b>")
         if sig.invalidation is not None:
             lines.append(f"<b>Stop:</b> {sig.invalidation:g}")
     else:

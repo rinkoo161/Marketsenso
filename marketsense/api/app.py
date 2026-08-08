@@ -262,9 +262,92 @@ def company(symbol: str):
         prices = db.scalars(
             select(PriceDaily).where(PriceDaily.symbol == sym,
                                      PriceDaily.source == "bhavcopy")
-            .order_by(PriceDaily.trade_date.desc()).limit(90)).all()
+            .order_by(PriceDaily.trade_date.desc()).limit(260)).all()
         closes = [{"d": p.trade_date.date().isoformat(), "c": p.close}
-                  for p in reversed(prices)]
+                  for p in reversed(prices[:90])]
+
+        # ---- shareholding pattern series (promoter/public %, deltas) ----
+        import re as _re
+
+        from marketsense.db.models import Filing as _F
+
+        _pr = _re.compile(r"PR_AND_PRGRP:\s*([\d.]+)")
+        _pub = _re.compile(r"PUBLIC_VAL:\s*([\d.]+)")
+        _asof = _re.compile(r"AS ON DATE\s*:\s*([0-9]{2}-[A-Za-z]{3}-[0-9]{4})")
+        sh_rows = db.execute(
+            select(_F.event_at, _F.subject, _F.description)
+            .where(_F.feed == "shareholding_pattern", _F.symbol == sym)
+            .order_by(_F.event_at)).all()
+        shareholding = []
+        for ts, subject, desc in sh_rows:
+            text = (subject or "") + " " + (desc or "")
+            pr, pub = _pr.search(text), _pub.search(text)
+            aso = _asof.search(text)
+            if pr:
+                shareholding.append({
+                    "as_of": aso.group(1) if aso else
+                             (ts.date().isoformat() if ts else "?"),
+                    "promoter_pct": float(pr.group(1)),
+                    "public_pct": float(pub.group(1)) if pub else None})
+        for i in range(1, len(shareholding)):
+            shareholding[i]["promoter_delta"] = round(
+                shareholding[i]["promoter_pct"]
+                - shareholding[i - 1]["promoter_pct"], 2)
+
+        # ---- ratios strip (only what the data honestly supports) ----
+        ratios: dict = {}
+        all_closes = [p.close for p in prices if p.close]
+        if all_closes:
+            ratios["price"] = all_closes[0]
+            ratios["high_52w"] = max(all_closes)
+            ratios["low_52w"] = min(all_closes)
+        cons_q = [q for q in db.scalars(
+            select(FinancialsQuarterly)
+            .where(FinancialsQuarterly.symbol == sym,
+                   FinancialsQuarterly.basis == "consolidated")
+            .order_by(FinancialsQuarterly.period_end.desc()).limit(4))]
+        if len(cons_q) == 4 and all(q.eps_basic for q in cons_q):
+            ttm_eps = sum(q.eps_basic for q in cons_q)
+            ratios["eps_ttm"] = round(ttm_eps, 2)
+            if all_closes and ttm_eps:
+                ratios["pe_ttm"] = round(all_closes[0] / ttm_eps, 1)
+        raw0 = (cons_q[0].raw or {}) if cons_q else {}
+        try:
+            paidup = float(raw0.get("PaidUpValueOfEquityShareCapital", 0))
+            face = float(raw0.get("FaceValueOfEquityShareCapital", 0))
+            if paidup > 0 and face > 0 and all_closes:
+                ratios["mcap_cr"] = round(paidup / face * all_closes[0] / 1e7)
+                ratios["face_value"] = face
+        except (TypeError, ValueError):
+            pass
+
+        # ---- industry peers with our scores ----
+        from marketsense.db.models import Security as _S
+
+        me = db.scalar(select(_S).where(_S.symbol == sym))
+        industry = (me.extra or {}).get("industry") if me else None
+        peers = []
+        if industry:
+            peer_syms = [s for (s,) in db.execute(
+                select(_S.symbol).where(
+                    _S.extra["industry"].as_string() == industry,
+                    _S.symbol != sym))][:12]
+            for ps in peer_syms:
+                row = {"symbol": ps}
+                for agent in ("a4", "a3"):
+                    sc = db.scalars(select(Score).where(
+                        Score.agent == agent, Score.symbol == ps)
+                        .order_by(Score.as_of.desc()).limit(1)).first()
+                    if sc:
+                        row[agent] = round(sc.score)
+                sig = db.scalars(select(Signal).where(Signal.symbol == ps)
+                                 .order_by(Signal.as_of.desc()).limit(1)).first()
+                if sig:
+                    row["stance"] = sig.stance
+                    row["conviction"] = sig.conviction
+                if len(row) > 1:
+                    peers.append(row)
+            peers.sort(key=lambda r: -(r.get("conviction") or 0))
     if not (signals or scores or fins or closes):
         raise HTTPException(404, f"nothing known about {sym}")
     return {
@@ -276,6 +359,10 @@ def company(symbol: str):
                      "event_at": f.event_at, "link": f.link}
                     for f in filings],
         "prices": closes,
+        "shareholding": shareholding[-8:],
+        "ratios": ratios,
+        "industry": industry,
+        "peers": peers[:8],
     }
 
 

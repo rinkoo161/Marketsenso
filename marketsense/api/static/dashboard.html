@@ -72,6 +72,11 @@ main{padding:16px 18px;max-width:1500px;margin:0 auto}
 .tbl tbody tr:hover{background:var(--panel2)}
 th.sortable{cursor:pointer;user-select:none}
 th.sortable:hover{color:var(--text)}
+/* screener-style ratio strip: wrapping label/value pairs */
+.ratios{display:flex;flex-wrap:wrap;gap:4px 22px;margin:6px 0 12px}
+.ratio{display:flex;flex-direction:column;line-height:1.35}
+.ratio span{font-size:11px;letter-spacing:.03em;text-transform:uppercase}
+.ratio b{font-size:14px}
 
 .chip{display:inline-block;padding:2px 9px;border:1px solid var(--line);
   border-radius:999px;font-size:11px;color:var(--dim);
@@ -328,12 +333,59 @@ async function selectCompany(sym) {
         ${esc(s.label||'')}</span>` : '';
     }).join(' ');
 
-  const finRows = (c.financials||[]).map(f => `<tr>
-    <td class="num">${esc(f.period_end)}</td>
-    <td class="muted">${esc(f.basis[0].toUpperCase())}</td>
-    <td class="num">${fmt(f.revenue_cr,0)}</td>
-    <td class="num ${f.pat_cr<0?'dn':''}">${fmt(f.pat_cr,0)}</td>
-    <td class="num muted">${fmt(f.eps,2)}</td></tr>`).join('');
+  /* Screener-style ratio strip: label/value pairs, only what's computable */
+  const R = c.ratios || {};
+  const rp = (label, v, suffix='') => v==null ? '' :
+    `<div class="ratio"><span class="muted">${label}</span><b class="num">${v}${suffix}</b></div>`;
+  const ratioStrip = [
+    rp('Mkt Cap', R.mcap_cr!=null?'₹'+Number(R.mcap_cr).toLocaleString('en-IN')+' Cr':null),
+    rp('Price', R.price!=null?'₹'+fmt(R.price,2):null),
+    rp('52w H/L', R.high_52w!=null?fmt(R.high_52w,0)+' / '+fmt(R.low_52w,0):null),
+    rp('P/E (TTM)', R.pe_ttm),
+    rp('EPS (TTM)', R.eps_ttm),
+    rp('Face', R.face_value!=null?'₹'+fmt(R.face_value,0):null),
+  ].join('');
+
+  /* Screener-signature layout: periods as COLUMNS, metrics as rows */
+  const cons = (c.financials||[]).filter(f => f.basis==='consolidated');
+  const qcols = (cons.length ? cons : (c.financials||[])).slice(0,8).reverse();
+  const qhead = qcols.map(f =>
+    `<th class="num">${esc(f.period_end.slice(2,7).replace('-','’'))}</th>`).join('');
+  const qrow = (label, get, cls=() => '') =>
+    `<tr><td class="muted">${label}</td>` +
+    qcols.map(f => `<td class="num ${cls(get(f))}">${fmt(get(f),0)}</td>`).join('') + '</tr>';
+  const qTable = qcols.length ? `
+    <table class="tbl"><thead><tr><th></th>${qhead}</tr></thead><tbody>
+      ${qrow('Revenue', f => f.revenue_cr)}
+      ${qrow('PAT', f => f.pat_cr, v => v<0?'dn':'')}
+      ${qrow('EPS', f => f.eps)}
+    </tbody></table>` : '<span class="muted">no quarters</span>';
+
+  /* shareholding pattern — the screener section, from our filings */
+  const sh = c.shareholding || [];
+  const shTable = sh.length ? `
+    <table class="tbl"><thead><tr><th>as of</th>
+      <th class="num">promoter %</th><th class="num">Δ</th>
+      <th class="num">public %</th></tr></thead><tbody>
+    ${sh.map(r => `<tr><td class="num muted">${esc(r.as_of)}</td>
+      <td class="num"><b>${fmt(r.promoter_pct,2)}</b></td>
+      <td class="num ${r.promoter_delta>0?'up':r.promoter_delta<0?'dn':'muted'}">
+        ${r.promoter_delta!=null?(r.promoter_delta>0?'+':'')+fmt(r.promoter_delta,2):'–'}</td>
+      <td class="num muted">${fmt(r.public_pct,2)}</td></tr>`).join('')}
+    </tbody></table>` : '<span class="muted">no shareholding filings held</span>';
+
+  /* industry peers with OUR scores — screener's peer table, our data */
+  const peers = c.peers || [];
+  const peerTable = peers.length ? `
+    <table class="tbl"><thead><tr><th>peer</th><th>stance</th>
+      <th class="num">conv</th><th class="num">tech</th><th class="num">fund</th>
+      </tr></thead><tbody>
+    ${peers.map(p => `<tr class="sigrow" data-sym="${esc(p.symbol)}">
+      <td><b>${esc(p.symbol)}</b></td>
+      <td class="stance-${p.stance||'hold'}">${esc(p.stance||'–')}</td>
+      <td class="num">${fmt(p.conviction)}</td>
+      <td class="num">${p.a4??'–'}</td><td class="num">${p.a3??'–'}</td>
+    </tr>`).join('')}</tbody></table>` : '';
 
   const filRows = (c.filings||[]).map(f => `<div style="margin:3px 0">
     <span class="muted num">${esc((f.event_at||'').slice(5,10))}</span>
@@ -342,15 +394,19 @@ async function selectCompany(sym) {
     ${f.link?` <a target="_blank" href="${esc(f.link)}">doc</a>`:''}</div>`).join('');
 
   el.innerHTML = `
-    <div class="card"><h3>${esc(c.symbol)} · 90d</h3>${sparkline(c.prices)}
+    <div class="card"><h3>${esc(c.symbol)}${c.industry?` · <span class="chip">${esc(c.industry)}</span>`:''}</h3>
+      <div class="ratios">${ratioStrip||'<span class="muted">ratios pending data</span>'}</div>
+      ${sparkline(c.prices)}
       <div style="margin-top:8px">${scoreChips}</div></div>
     ${profs || '<div class="card muted">no signals for this symbol</div>'}
-    <div class="card"><h3>Quarterly results · ₹ Cr</h3>
-      <table class="tbl"><thead><tr><th class="num">period</th><th></th>
-      <th class="num">revenue</th><th class="num">PAT</th><th class="num">EPS</th>
-      </tr></thead><tbody>${finRows||''}</tbody></table>
+    <div class="card"><h3>Quarterly results · ₹ Cr (consolidated)</h3>
+      <div style="overflow-x:auto">${qTable}</div>
       <div class="muted" style="margin-top:6px">balance sheet: ${esc(c.balance_sheet)}</div></div>
+    <div class="card"><h3>Shareholding pattern</h3>${shTable}</div>
+    ${peerTable?`<div class="card"><h3>Peers · ${esc(c.industry||'')}</h3>${peerTable}</div>`:''}
     <div class="card"><h3>Filings · 90d</h3>${filRows||'<span class="muted">none</span>'}</div>`;
+  el.querySelectorAll('.sigrow[data-sym]').forEach(r =>
+    r.onclick = () => selectCompany(r.dataset.sym));
 }
 
 /* ---------------- performance ---------------- */

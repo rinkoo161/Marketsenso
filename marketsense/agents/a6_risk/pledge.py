@@ -102,10 +102,15 @@ def parse_shp_xbrl(xml: str) -> dict | None:
     instance); returns encumbered_pct=None for pledged-but-unquantified
     (old instances that carry only the boolean)."""
     ctx_ids = _promoter_ctx_ids(xml)
-    if not ctx_ids:
-        return None
-    promoter_raw = _fact(xml, _PROMOTER_PCT_FACT, ctx_ids)
+    promoter_raw = _fact(xml, _PROMOTER_PCT_FACT, ctx_ids) if ctx_ids else None
     if promoter_raw is None:
+        # promoterless companies (YESBANK, ICICIBANK, LT, BSE…) have no
+        # promoter context at all — a valid SHP instance without one
+        # means promoter pledge is vacuously zero, not unknown. Only a
+        # file with no shareholding facts anywhere is truly unparseable.
+        if _PROMOTER_PCT_FACT in xml:
+            return {"promoter_pct": 0.0, "encumbered_shares": None,
+                    "encumbered_pct": 0.0, "encumbered_pct_of_total": 0.0}
         return None
     promoter = _pct(promoter_raw)
     enc_raw = _fact(xml, _ENC_PCT_FACTS, ctx_ids)
@@ -146,7 +151,9 @@ def sync_symbol(db, client, symbol: str) -> str:
     rows = [r for r in (rows or []) if isinstance(r, dict)]
     rows.sort(key=lambda r: _parse_dt(r.get("broadcastDate"))
               or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    latest = next((r for r in rows if r.get("xbrl")), None)
+    # placeholder values ("-") are truthy — require an actual URL
+    latest = next((r for r in rows
+                   if str(r.get("xbrl") or "").startswith("http")), None)
 
     if latest is None:
         # sentinel: looked, nothing usable — don't retry every cycle
@@ -243,9 +250,15 @@ def sync_pending(db_factory, client, *, limit: int = 300,
             if "budget" in str(e):          # token refill — wait, retry same
                 time.sleep(2.5)
                 continue
-            stats["deferred"] += 1          # circuit open — NSE said stop
-            log.info("pledge_sync_deferred", symbol=sym, error=str(e))
-            break
+            if "breaker" in str(e):         # circuit open — NSE said stop
+                stats["deferred"] += 1
+                log.info("pledge_sync_deferred", symbol=sym, error=str(e))
+                break
+            # anything else (404 on an archive URL etc.) — skip THIS
+            # symbol, keep the pass alive; no sentinel, so it retries on
+            # a later pass (archives are eventually consistent)
+            stats["skipped"] = stats.get("skipped", 0) + 1
+            log.info("pledge_sync_skipped", symbol=sym, error=str(e)[:120])
         except Exception as e:  # one bad symbol must not kill the pass
             log.warning("pledge_sync_error", symbol=sym, error=str(e)[:200])
         i += 1

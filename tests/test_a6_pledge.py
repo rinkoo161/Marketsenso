@@ -76,6 +76,13 @@ def test_parse_old_era_pledged_element_name():
     assert r["encumbered_pct"] == 61.44
 
 
+def test_parse_promoterless_company_is_vacuous_zero_not_unknown():
+    # YESBANK/ICICIBANK/LT shape: valid SHP, no promoter context at all
+    xml = AFFIRMED_ZERO_XML.replace("PromoterAndPromoterGroup", "Public")
+    r = parse_shp_xbrl(xml)
+    assert r["promoter_pct"] == 0.0 and r["encumbered_pct"] == 0.0
+
+
 def test_parse_omitted_facts_with_all_false_booleans_is_affirmed_zero():
     # DEVX shape: zero-pledge companies omit the facts; the booleans
     # affirm the zero. Omission WITHOUT the booleans must stay unknown.

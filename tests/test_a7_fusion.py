@@ -87,6 +87,38 @@ def test_event_score_counts_each_filing_once_across_versions(db_factory):
     assert len(evidence) == 1  # one filing, one entry — not one per version
 
 
+def test_peer_event_propagates_within_industry(db_factory):
+    """User requirement 2026-08-08: a pharma peer's m9 event must reach
+    other pharma names — dampened, evidence-tagged with the source."""
+    from marketsense.agents.a7_fusion.engine import peer_event_score
+    from marketsense.db.models import Security
+
+    with db_factory() as db:
+        db.add(Security(symbol="PHARMA1", company_name="P1",
+                        extra={"industry": "Pharmaceuticals"}))
+        db.add(Security(symbol="PHARMA2", company_name="P2",
+                        extra={"industry": "Pharmaceuticals"}))
+        db.add(Security(symbol="STEELCO", company_name="S1",
+                        extra={"industry": "Steel And Steel Products"}))
+        f = Filing(feed="announcements", symbol="PHARMA2",
+                   content_hash="a7peer".ljust(64, "0"), source="rss",
+                   subject="USFDA warning letter",
+                   event_at=NOW - timedelta(days=1))
+        db.add(f)
+        db.flush()
+        db.add(FilingClassification(
+            filing_id=f.id, category="regulatory_action", materiality=8,
+            sentiment=-0.8, confidence=0.9, engine="rules",
+            model_version=A2_V, event_at=NOW - timedelta(days=1)))
+        db.commit()
+        s1, c1, ev1 = peer_event_score(db, "PHARMA1", now=NOW)
+        s2, c2, ev2 = peer_event_score(db, "STEELCO", now=NOW)
+    assert s1 < 50 and c1 > 0            # negative peer event pushed down
+    assert ev1[0]["peer"] == "PHARMA2"   # source named in evidence
+    assert ev1[0]["industry"] == "Pharmaceuticals"
+    assert c2 == 0 and s2 == 50          # different industry: untouched
+
+
 def test_hysteresis_holds_small_moves(db_factory):
     with db_factory() as db:
         _full_stack(db, "HYSTCO")

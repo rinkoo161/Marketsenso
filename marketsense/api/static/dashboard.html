@@ -54,6 +54,9 @@
   .big { font-size:22px; }
   .muted { color:var(--dim); }
   #err { color:var(--red); padding:8px 16px; display:none; }
+  .sigrow { cursor:pointer; }
+  .sigrow:hover td { background:var(--panel); }
+  .sigrow.sel td { background:#1c2432; }
 </style>
 </head>
 <body>
@@ -122,26 +125,95 @@ function thesisHtml(t) {
       · filings ${esc(JSON.stringify((t.evidence?.event_filings||[]).slice(0,6)))}</div>
   </div>`;
 }
+let SELECTED = null;
 function renderSignals() {
   const sigs = state.signals || [];
   const rows = sigs.map(s => `
-    <tr>
+    <tr class="sigrow ${SELECTED===s.symbol?'sel':''}" data-sym="${esc(s.symbol)}">
       <td class="stance-${s.stance}">${esc(s.stance)}</td>
-      <td class="num"><span class="bar" style="width:${s.conviction*0.6}px"></span> ${fmt(s.conviction)}</td>
-      <td class="num muted">${fmt(s.confidence,2)}</td>
+      <td class="num"><span class="bar" style="width:${s.conviction*0.5}px"></span> ${fmt(s.conviction)}</td>
       <td><b>${esc(s.symbol)}</b></td>
       <td><span class="pill">${esc(s.risk_verdict)}</span></td>
-      <td class="num">${s.size_pct??'–'}%</td>
       <td class="muted">${esc(s.horizon||'')}</td>
-      <td class="num muted">${s.entry?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}</td>
-      <td class="num muted">${s.target?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}</td>
-      <td class="num">${fmt(s.invalidation,1)}</td>
-      <td><details><summary class="muted">thesis</summary>${thesisHtml(s.thesis)}</details></td>
     </tr>`).join('');
   $('#main').innerHTML = `
-    <table><thead><tr><th>stance</th><th>conviction</th><th>conf</th><th>symbol</th>
-    <th>risk</th><th>size</th><th>horizon</th><th>entry</th><th>target</th>
-    <th>stop</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    <div style="display:flex; gap:14px; align-items:flex-start">
+      <div style="flex:0 0 460px; max-height:82vh; overflow-y:auto">
+        <table><thead><tr><th>stance</th><th>conviction</th><th>symbol</th>
+        <th>risk</th><th>horizon</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div id="detail" style="flex:1; min-width:0">
+        <div class="card muted">select a signal ←</div>
+      </div>
+    </div>`;
+  document.querySelectorAll('.sigrow').forEach(r => r.onclick =
+    () => selectCompany(r.dataset.sym));
+  if (SELECTED) selectCompany(SELECTED);
+}
+
+function sparkline(prices) {
+  if (!prices || prices.length < 2) return '';
+  const cs = prices.map(p => p.c).filter(Boolean);
+  const min = Math.min(...cs), max = Math.max(...cs), W = 560, H = 70;
+  const pts = cs.map((c, i) =>
+    `${(i / (cs.length - 1) * W).toFixed(1)},` +
+    `${(H - (max === min ? H/2 : (c - min) / (max - min) * H)).toFixed(1)}`).join(' ');
+  const up = cs[cs.length-1] >= cs[0];
+  return `<svg width="${W}" height="${H+4}" style="overflow:visible">
+    <polyline points="${pts}" fill="none"
+      stroke="${up ? 'var(--green)' : 'var(--red)'}" stroke-width="1.5"/></svg>
+    <div class="muted">${prices[0].d} → ${prices[prices.length-1].d}
+    · last ${fmt(cs[cs.length-1],2)}</div>`;
+}
+
+async function selectCompany(sym) {
+  SELECTED = sym;
+  document.querySelectorAll('.sigrow').forEach(r =>
+    r.classList.toggle('sel', r.dataset.sym === sym));
+  const el = $('#detail');
+  el.innerHTML = '<div class="card muted">loading ' + esc(sym) + '…</div>';
+  let c;
+  try { c = await j('/api/company/' + encodeURIComponent(sym)); }
+  catch (e) { el.innerHTML = `<div class="card bad">${esc(e.message)}</div>`; return; }
+
+  const profs = Object.entries(c.signals || {}).map(([p, s]) => `
+    <div class="card">
+      <h3>${esc(p)} · ${esc(s.horizon||'')}</h3>
+      <div><span class="stance-${s.stance} big">${esc(s.stance)}</span>
+        conviction <b>${fmt(s.conviction)}</b>
+        <span class="muted">conf ${fmt(s.confidence,2)}</span>
+        <span class="pill">${esc(s.risk_verdict)}</span></div>
+      <div class="muted">entry ${s.entry?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}
+        · target ${s.target?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}
+        · stop ${fmt(s.invalidation,1)} · size ${s.size_pct??'–'}%</div>
+      ${thesisHtml(s.thesis)}
+    </div>`).join('');
+
+  const scoreRow = ['a3','a4','a5','a6'].map(a => {
+    const s = (c.scores||{})[a];
+    return s ? `<span class="pill">${a} ${fmt(s.score,0)} ${esc(s.label||'')}</span>` : '';
+  }).join(' ');
+
+  const finRows = (c.financials||[]).map(f => `<tr>
+    <td>${esc(f.period_end)}</td><td class="muted">${esc(f.basis[0])}</td>
+    <td class="num">${fmt(f.revenue_cr,0)}</td>
+    <td class="num ${f.pat_cr<0?'bad':''}">${fmt(f.pat_cr,0)}</td>
+    <td class="num muted">${fmt(f.eps,2)}</td></tr>`).join('');
+
+  const filRows = (c.filings||[]).map(f => `<div>
+    <span class="muted">${esc((f.event_at||'').slice(5,10))}</span>
+    <span class="pill">${esc(f.feed)}</span> ${esc((f.subject||'').slice(0,80))}
+    ${f.link?` <a class="muted" target="_blank" href="${esc(f.link)}">doc</a>`:''}</div>`).join('');
+
+  el.innerHTML = `
+    <div class="card"><h3>${esc(c.symbol)} — 90d</h3>${sparkline(c.prices)}
+      <div style="margin-top:6px">${scoreRow}</div></div>
+    ${profs || '<div class="card muted">no signals for this symbol</div>'}
+    <div class="card"><h3>Quarterly results (₹ Cr) ·
+      <span class="muted">balance sheet: ${esc(c.balance_sheet)}</span></h3>
+      <table><thead><tr><th>period</th><th></th><th>revenue</th><th>PAT</th>
+      <th>EPS</th></tr></thead><tbody>${finRows||''}</tbody></table></div>
+    <div class="card"><h3>Recent filings (90d)</h3>${filRows||'<span class="muted">none</span>'}</div>`;
 }
 
 /* ---------------- performance ---------------- */

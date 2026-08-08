@@ -161,6 +161,80 @@ def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
     ]
 
 
+@app.get("/api/company/{symbol}")
+def company(symbol: str):
+    """Everything the detail pane needs: signals (all profiles), scores,
+    quarterly financials, recent filings, price context. Balance-sheet
+    facts are served when present in the XBRL raw; quarterly filings are
+    P&L-only, so most quarters honestly return none."""
+    from sqlalchemy import select
+
+    from marketsense.db.models import (
+        FinancialsQuarterly,
+        PriceDaily,
+        Score,
+        Signal,
+    )
+
+    sym = symbol.upper()
+    now = datetime.now(timezone.utc)
+    with session() as db:
+        signals = {}
+        for s in db.scalars(select(Signal).where(Signal.symbol == sym)
+                            .order_by(Signal.as_of.desc()).limit(20)):
+            signals.setdefault(s.profile, {
+                "stance": s.stance, "conviction": s.conviction,
+                "confidence": s.confidence, "horizon": s.horizon,
+                "entry": [s.entry_low, s.entry_high],
+                "target": [s.target_low, s.target_high],
+                "invalidation": s.invalidation, "size_pct": s.size_pct,
+                "risk_verdict": s.risk_verdict, "thesis": s.thesis,
+                "as_of": s.as_of})
+        scores = {}
+        for agent in ("a3", "a4", "a5", "a6"):
+            row = db.scalars(select(Score).where(Score.agent == agent,
+                                                 Score.symbol == sym)
+                             .order_by(Score.as_of.desc()).limit(1)).first()
+            if row:
+                scores[agent] = {"score": row.score, "label": row.label,
+                                 "confidence": row.confidence,
+                                 "as_of": row.as_of,
+                                 "components": row.components}
+        fins = [
+            {"period_end": q.period_end.date().isoformat(), "basis": q.basis,
+             "revenue_cr": round(q.revenue / 1e7, 1) if q.revenue else None,
+             "pat_cr": round(q.pat / 1e7, 1) if q.pat else None,
+             "eps": q.eps_basic, "audited": q.audited,
+             "filing_id": q.filing_id,
+             # balance-sheet facts only exist in H1/annual instances
+             "paid_up_capital": (q.raw or {}).get("PaidUpValueOfEquityShareCapital")}
+            for q in db.scalars(
+                select(FinancialsQuarterly)
+                .where(FinancialsQuarterly.symbol == sym)
+                .order_by(FinancialsQuarterly.period_end.desc()).limit(12))
+        ]
+        filings = pit_filings(db, as_of=now, symbol=sym,
+                              since=now - timedelta(days=90), limit=15)
+        prices = db.scalars(
+            select(PriceDaily).where(PriceDaily.symbol == sym,
+                                     PriceDaily.source == "bhavcopy")
+            .order_by(PriceDaily.trade_date.desc()).limit(90)).all()
+        closes = [{"d": p.trade_date.date().isoformat(), "c": p.close}
+                  for p in reversed(prices)]
+    if not (signals or scores or fins or closes):
+        raise HTTPException(404, f"nothing known about {sym}")
+    return {
+        "symbol": sym, "signals": signals, "scores": scores,
+        "financials": fins,
+        "balance_sheet": "not yet parsed (H1/annual instances only; "
+                         "quarterly XBRL is P&L-only)",
+        "filings": [{"id": f.id, "feed": f.feed, "subject": f.subject,
+                     "event_at": f.event_at, "link": f.link}
+                    for f in filings],
+        "prices": closes,
+    }
+
+
 @app.get("/api/performance")
 def performance():
     """§7.7 — observed signal performance by stance × window."""

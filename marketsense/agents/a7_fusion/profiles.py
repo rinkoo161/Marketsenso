@@ -2,11 +2,17 @@
 PROFILES_VERSION — signals carry it, and historical attribution depends
 on knowing which weights produced which stance."""
 
-PROFILES_VERSION = "p1"
+PROFILES_VERSION = "p2"  # p2 (2026-08-08): + short profile (user request)
 
 # weights over (fundamental, technical, flow, event) — must sum to 100
 PROFILES: dict[str, dict[str, float]] = {
     "default":      {"fundamental": 30, "technical": 25, "flow": 20, "event": 25},
+    # Short-horizon (1-5 trading days) on EOD data: event + momentum
+    # dominate, fundamentals are near-irrelevant at this timescale.
+    # TRUE intraday needs live ticks — that arrives via the ltp-monitor
+    # integration (their live layer reacting to our event flags), not
+    # from an EOD pipeline pretending.
+    "short":        {"fundamental": 0,  "technical": 35, "flow": 20, "event": 45},
     "value":        {"fundamental": 50, "technical": 10, "flow": 15, "event": 25},
     "momentum":     {"fundamental": 10, "technical": 45, "flow": 25, "event": 20},
     "event_driven": {"fundamental": 15, "technical": 15, "flow": 20, "event": 50},
@@ -16,7 +22,7 @@ PROFILES: dict[str, dict[str, float]] = {
 }
 
 HORIZON = {
-    "default": "3-6m", "value": "6-18m", "momentum": "2-8w",
+    "default": "3-6m", "short": "1-5d", "value": "6-18m", "momentum": "2-8w",
     "event_driven": "1-6w", "quality": "6-18m", "swing": "1-3w",
     "positional": "2-6m",
 }

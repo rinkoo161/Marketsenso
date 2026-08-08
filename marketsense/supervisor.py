@@ -214,11 +214,30 @@ class IngestSupervisor:
             # A7 last of all — fuses everything above into stances
             from marketsense.agents.a7_fusion.engine import issue_all
 
-            r9 = issue_all(session)
+            # two standing profiles: positional default + 1-5d short
+            r9 = {"default": issue_all(session),
+                  "short": issue_all(session, profile="short")}
             # §7.7 — measure signal performance nightly as prices land
             from marketsense.performance.tracker import measure
 
             r10 = measure(session)
+            # industry map accretes from announcement metadata — peer-event
+            # propagation coverage grows as filings arrive (492 symbols at
+            # introduction, 2026-08-08)
+            from sqlalchemy import text as _text
+
+            with session() as db:
+                n = db.execute(_text(
+                    "update securities s set extra = coalesce(s.extra,'{}'::jsonb)"
+                    " || jsonb_build_object('industry', f.ind)"
+                    " from (select distinct on (symbol) symbol,"
+                    "       raw->>'smIndustry' ind from filings"
+                    "       where raw->>'smIndustry' is not null"
+                    "       and raw->>'smIndustry' != '-'"
+                    "       order by symbol, observed_at desc) f"
+                    " where s.symbol = f.symbol and"
+                    " coalesce(s.extra->>'industry','') != f.ind")).rowcount
+                db.commit()
             return {"prices": r1, "indices": r2, "a4": r3,
                     "a3_load": r4, "a3": r5, "a5_ingest": r6, "a5": r7,
                     "a6": r8, "a7": r9, "performance": r10}

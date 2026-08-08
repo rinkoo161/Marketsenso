@@ -115,6 +115,68 @@ def event_score(db, symbol: str, *, now: datetime,
     return score, conf, evidence
 
 
+PEER_DAMPING = 0.35   # a peer's event moves you at ~1/3 strength
+PEER_MIN_MATERIALITY = 7
+
+
+def peer_event_score(db, symbol: str, *, now: datetime,
+                     visibility: str = "observed"
+                     ) -> tuple[float, float, list[dict]]:
+    """Same-industry propagation (user requirement 2026-08-08: a steel
+    filing matters to steel peers; a pharma event to pharma names).
+    High-materiality (≥7) events from industry PEERS contribute at
+    PEER_DAMPING strength; evidence rows carry the SOURCE symbol so the
+    thesis says whose event it was.
+
+    Scope honesty: this covers same-industry filing events. Cross-industry
+    input-cost chains (steel → auto) and commodity-price NEWS are not
+    filings — they need the news layer + a curated linkage map (planned
+    with the ltp-monitor news integration)."""
+    from marketsense.agents.a2_docintel.classifier import (
+        MODEL_VERSION as A2_VERSION,
+    )
+    from marketsense.db.models import Security
+
+    me = db.scalar(select(Security).where(Security.symbol == symbol))
+    industry = (me.extra or {}).get("industry") if me else None
+    if not industry:
+        return 50.0, 0.0, []
+    peers = [s for (s,) in db.execute(
+        select(Security.symbol).where(
+            Security.extra["industry"].as_string() == industry,
+            Security.symbol != symbol))]
+    if not peers:
+        return 50.0, 0.0, []
+
+    since = now - timedelta(days=EVENT_WINDOW_D)
+    ts_col = (FilingClassification.observed_at if visibility == "observed"
+              else Filing.event_at)
+    rows = db.execute(
+        select(FilingClassification, Filing.symbol, Filing.subject)
+        .join(Filing, Filing.id == FilingClassification.filing_id)
+        .where(Filing.symbol.in_(peers),
+               FilingClassification.model_version == A2_VERSION,
+               ts_col >= since, ts_col <= now,
+               FilingClassification.routine.is_(False),
+               FilingClassification.materiality >= PEER_MIN_MATERIALITY)
+        .order_by(FilingClassification.materiality.desc())
+        .limit(8)).all()
+    if not rows:
+        return 50.0, 0.0, []
+    push, evidence = 0.0, []
+    for c, peer_sym, subject in rows:
+        age = max(0.0, (now - c.observed_at).total_seconds() / 86400.0)
+        w = _decay(age, "event") * (c.materiality / 10.0) * c.confidence
+        push += 50.0 * w * c.sentiment * PEER_DAMPING
+        evidence.append({"filing_id": c.filing_id, "peer": peer_sym,
+                         "category": c.category, "materiality": c.materiality,
+                         "sentiment": c.sentiment, "industry": industry,
+                         "subject": (subject or "")[:70]})
+    return (max(0.0, min(100.0, 50.0 + push)),
+            min(1.0, max(r[0].confidence for r in rows)) * PEER_DAMPING,
+            evidence)
+
+
 def _latest_scores(db, symbol: str) -> dict[str, Score]:
     out: dict[str, Score] = {}
     for agent in ("a3", "a4", "a5", "a6"):
@@ -202,8 +264,11 @@ def _thesis(symbol: str, inputs: dict, ev_evidence: list[dict],
         if c.get("promoter_delta_pp") is not None:
             line += f"; promoter Δ {c['promoter_delta_pp']:+.2f}pp"
         (bullets_for if a5.score >= 55 else bullets_against).append(line)
-    for ev in ev_evidence[:2]:
-        line = (f"{ev['category']} m{ev['materiality']} "
+    for ev in ev_evidence[:3]:
+        peer = ev.get("peer")
+        prefix = (f"peer event ({peer}, {ev.get('industry', '')}): "
+                  if peer else "")
+        line = (f"{prefix}{ev['category']} m{ev['materiality']} "
                 f"({ev['subject']}) [filing#{ev['filing_id']}]")
         (bullets_for if ev["sentiment"] > 0 else bullets_against).append(line)
     if a6 and a6.label != "clear":
@@ -237,6 +302,13 @@ def fuse_symbol(db, symbol: str, *, profile: str = "default",
     inputs = _latest_scores(db, symbol)
     a6 = inputs.pop("a6", None)
     ev_score, ev_conf, ev_evidence = event_score(db, symbol, now=now)
+    # same-industry peer events fold into the event axis at dampened
+    # strength; peer evidence is tagged with the source symbol
+    pe_score, pe_conf, pe_evidence = peer_event_score(db, symbol, now=now)
+    if pe_conf > 0:
+        ev_score = max(0.0, min(100.0, ev_score + (pe_score - 50.0)))
+        ev_conf = max(ev_conf, pe_conf)
+        ev_evidence = ev_evidence + pe_evidence
 
     weights = PROFILES[profile]
     values: dict[str, tuple[float, float] | None] = {

@@ -19,8 +19,10 @@
   --amber:#FFC107; --blue:#3D9BFF;
 }
 [data-theme="light"]{
-  --bg:#FFFFFF; --panel:#FFFFFF; --panel2:#F7F8FA; --line:#E6E8EC;
-  --text:#16181D; --dim:#5B6472; --muted:#8A93A2;
+  --bg:#FFFFFF; --panel:#FFFFFF; --panel2:#F7F8FA; --line:#D9DCE1;
+  /* dim/muted darkened (2026-08-09): the QC-reference greys were
+     unreadable on white per user feedback */
+  --text:#16181D; --dim:#3F4754; --muted:#565E6B;
   --accent:#2563EB;
   --up:#0E9F6E; --dn:#D92D20;
   --amber:#B45309; --blue:#2563EB;
@@ -97,12 +99,13 @@ th.sortable:hover{color:var(--text)}
 .chip.dn{color:var(--dn);border-color:var(--dn)}
 .chip.amber{color:var(--amber);border-color:var(--amber)}
 
-.stance-buy{color:var(--up);font-weight:600}
-.stance-accumulate{color:var(--up)}
-.stance-hold{color:var(--dim)}
-.stance-reduce{color:var(--dn)}
-.stance-exit{color:var(--dn);font-weight:600}
-.stance-suppressed{color:var(--dn);text-decoration:line-through}
+.stance-buy{color:var(--up);font-weight:600;text-transform:capitalize}
+.stance-accumulate{color:var(--up);text-transform:capitalize}
+.stance-hold{color:var(--dim);text-transform:capitalize}
+.stance-reduce{color:var(--dn);text-transform:capitalize}
+.stance-exit{color:var(--dn);font-weight:600;text-transform:capitalize}
+.stance-suppressed{color:var(--dn);text-decoration:line-through;
+  text-transform:capitalize}
 .sev-high{color:var(--dn);font-weight:600}
 .sev-medium{color:var(--amber)}
 .sev-low{color:var(--muted)}
@@ -127,10 +130,21 @@ th.sortable:hover{color:var(--text)}
 .sigrow.sel td{background:var(--panel2);
   box-shadow:inset 2px 0 0 var(--accent)}
 
-.thesis h4{font-size:11px;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--muted);margin:10px 0 4px;font-weight:500}
+/* thesis sections: hairline-separated blocks so FOR / AGAINST /
+   view-changer / evidence read as distinct sections */
+.thesis .tsec{border-top:1px solid var(--line);margin-top:12px;
+  padding-top:10px}
+.thesis h4{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 6px;font-weight:600}
 .thesis ul{margin-left:18px}
-.thesis li{margin:2px 0;white-space:normal}
+.thesis li{margin:4px 0;white-space:normal;line-height:1.5}
+/* signal-card levels: labelled pairs instead of a dot-separated run-on */
+.levels{display:flex;flex-wrap:wrap;gap:6px 26px;margin:10px 0 2px;
+  border-top:1px solid var(--line);padding-top:10px}
+.levels .lv{display:flex;flex-direction:column;line-height:1.4}
+.levels .lv span{font-size:11px;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--muted)}
+.levels .lv b{font-size:13px}
 details summary{cursor:pointer;color:var(--dim)}
 #err{color:var(--dn);padding:8px 18px;display:none}
 a{color:var(--blue);text-decoration:none}
@@ -198,12 +212,16 @@ function thesisHtml(t) {
   if (!t) return '';
   const li = (xs) => (xs||[]).map(x => `<li>${esc(x)}</li>`).join('');
   return `<div class="thesis">
-    <h4>for</h4><ul>${li(t.for)||'<li class="muted">—</li>'}</ul>
-    <h4>against</h4><ul>${li(t.against)||'<li class="muted">—</li>'}</ul>
-    <h4>what changes the view</h4><div style="white-space:normal">${esc(t.view_changer)}</div>
-    <h4>evidence</h4><div class="muted num" style="white-space:normal">
-      scores ${esc(JSON.stringify(t.evidence?.score_ids||{}))} ·
-      filings ${esc(JSON.stringify((t.evidence?.event_filings||[]).slice(0,6)))}</div>
+    <div class="tsec"><h4>✓ &nbsp;For</h4>
+      <ul>${li(t.for)||'<li class="muted">nothing in favour</li>'}</ul></div>
+    <div class="tsec"><h4>✗ &nbsp;Against</h4>
+      <ul>${li(t.against)||'<li class="muted">nothing against</li>'}</ul></div>
+    <div class="tsec"><h4>⚠ &nbsp;What Changes The View</h4>
+      <div style="white-space:normal;line-height:1.5">${esc(t.view_changer)}</div></div>
+    <div class="tsec"><h4>§ &nbsp;Evidence</h4>
+      <div class="muted num" style="white-space:normal;line-height:1.5">
+      scores ${esc(JSON.stringify(t.evidence?.score_ids||{}))} &nbsp;·&nbsp;
+      filings ${esc(JSON.stringify((t.evidence?.event_filings||[]).slice(0,6)))}</div></div>
   </div>`;
 }
 /* sorting state: click a header to sort, click again to flip */
@@ -380,17 +398,22 @@ async function selectCompany(sym, opts = {}) {
   try { c = await j('/api/company/' + encodeURIComponent(sym)); }
   catch (e) { el.innerHTML = `<div class="card dn">${esc(e.message)}</div>`; return; }
 
+  const lv = (label, v) =>
+    `<div class="lv"><span>${label}</span><b class="num">${v}</b></div>`;
   const profs = Object.entries(c.signals || {}).map(([p, s]) => `
     <div class="card">
-      <h3>${esc(p)} · ${esc(s.horizon||'')}</h3>
-      <div style="margin-bottom:6px">
-        <span class="stance-${s.stance} big">${esc(s.stance)}</span>
-        <span class="num"> ${fmt(s.conviction)}</span>
-        <span class="muted num">conf ${s.confidence!=null?fmt(100*s.confidence,0)+'%':'–'}</span>
-        <span class="chip ${s.risk_verdict==='clear'?'':'dn'}">${esc(s.risk_verdict)}</span></div>
-      <div class="muted num">entry ${s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}
-        · target ${s.target&&s.target[0]!=null?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}
-        · stop ${fmt(s.invalidation,1)} · size ${s.size_pct??'–'}%</div>
+      <h3>${p === 'short' ? 'Short Term' : 'Positional'} &nbsp;·&nbsp; ${esc(s.horizon||'')}</h3>
+      <div style="margin-bottom:4px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+        <span class="stance-${s.stance}" style="font-size:24px">${esc(s.stance)}</span>
+        <span class="num" style="font-size:18px">${fmt(s.conviction)}<span class="muted" style="font-size:12px">/100</span></span>
+        <span class="muted num">confidence ${s.confidence!=null?fmt(100*s.confidence,0)+'%':'–'}</span>
+        <span class="chip ${s.risk_verdict==='clear'?'up':'dn'}">${esc(s.risk_verdict)}</span></div>
+      <div class="levels">
+        ${lv('Entry Zone', s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+' – '+fmt(s.entry[1],1):'–')}
+        ${lv('Target Zone', s.target&&s.target[0]!=null?fmt(s.target[0],1)+' – '+fmt(s.target[1],1):'–')}
+        ${lv('Stop Loss', fmt(s.invalidation,1))}
+        ${lv('Position Size', (s.size_pct??'–')+'%')}
+      </div>
       ${thesisHtml(s.thesis)}
     </div>`).join('');
 

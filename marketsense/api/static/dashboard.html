@@ -72,6 +72,9 @@ main{padding:16px 18px;max-width:1500px;margin:0 auto}
 .tbl tbody tr:hover{background:var(--panel2)}
 th.sortable{cursor:pointer;user-select:none}
 th.sortable:hover{color:var(--text)}
+.cohead{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.coname{font-size:22px;font-weight:700;color:var(--text);
+  letter-spacing:-.01em;font-family:'Roboto Mono',monospace}
 .searchbar{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .searchbar input{flex:1;background:var(--panel);border:1px solid var(--line);
   border-radius:8px;color:var(--text);font:inherit;padding:8px 12px;outline:none}
@@ -304,29 +307,33 @@ function renderSignals() {
     document.querySelectorAll('th.sortable').forEach(h => h.onclick = () => {
       const k = h.dataset.key;
       SORT = {key: k, dir: SORT.key === k ? -SORT.dir : -1};
-      redrawBody();
+      redrawSignalsBody();
     });
     document.querySelectorAll('#sigbody .sigrow').forEach(r => r.onclick =
-      () => selectCompany(r.dataset.sym));
-  };
-  /* filter re-renders ONLY the tbody so the input keeps focus */
-  const redrawBody = () => {
-    const fresh = signalRowsHtml();
-    $('#sigbody').innerHTML = fresh.map(rowHtml).join('');
-    $('#matchCount').textContent = fresh.length + ' shown';
-    document.querySelectorAll('#sigbody .sigrow').forEach(r => r.onclick =
-      () => selectCompany(r.dataset.sym));
+      () => selectCompany(r.dataset.sym, {scroll: true}));
   };
   const inp = $('#symSearch');
-  inp.oninput = () => { FILTER = inp.value; redrawBody(); };
+  inp.oninput = () => { FILTER = inp.value; redrawSignalsBody(); };
   inp.onkeydown = (e) => {
     if (e.key === 'Enter' && inp.value.trim()) {
       /* exact-symbol open: works for ANY tracked company, ranked or not */
-      selectCompany(inp.value.trim().toUpperCase());
+      selectCompany(inp.value.trim().toUpperCase(), {scroll: true});
     }
   };
   wireRows();
-  if (SELECTED) selectCompany(SELECTED);
+  if (SELECTED) selectCompany(SELECTED);  // initial render only; no scroll
+}
+
+/* tbody-only redraw: used by filter, sort, AND background refresh —
+   preserves input focus, scroll position, and the open detail panel */
+function redrawSignalsBody() {
+  const body = $('#sigbody');
+  if (!body) return;
+  const fresh = signalRowsHtml();
+  body.innerHTML = fresh.map(rowHtml).join('');
+  $('#matchCount').textContent = fresh.length + ' shown';
+  body.querySelectorAll('.sigrow').forEach(r => r.onclick =
+    () => selectCompany(r.dataset.sym, {scroll: true}));
 }
 
 function sparkline(prices) {
@@ -347,11 +354,12 @@ function sparkline(prices) {
     ${fmt(100*(cs[cs.length-1]/cs[0]-1),1)}%</span></div>`;
 }
 
-async function selectCompany(sym) {
+async function selectCompany(sym, opts = {}) {
   SELECTED = sym;
   document.querySelectorAll('.sigrow').forEach(r =>
     r.classList.toggle('sel', r.dataset.sym === sym));
   const el = $('#detail');
+  if (!el) return;
   el.innerHTML = '<div class="card muted">loading ' + esc(sym) + '…</div>';
   let c;
   try { c = await j('/api/company/' + encodeURIComponent(sym)); }
@@ -439,7 +447,9 @@ async function selectCompany(sym) {
     ${f.link?` <a target="_blank" href="${esc(f.link)}">doc</a>`:''}</div>`).join('');
 
   el.innerHTML = `<div class="detail-grid">
-    <div class="card wide"><h3>${esc(c.symbol)}${c.industry?` · <span class="chip">${esc(c.industry)}</span>`:''}</h3>
+    <div class="card wide">
+      <div class="cohead"><span class="coname">${esc(c.symbol)}</span>
+        ${c.industry?`<span class="chip">${esc(c.industry)}</span>`:''}</div>
       <div class="ratios">${ratioStrip||'<span class="muted">ratios pending data</span>'}</div>
       ${sparkline(c.prices)}
       <div style="margin-top:8px">${scoreChips}</div></div>
@@ -452,8 +462,9 @@ async function selectCompany(sym) {
     <div class="card"><h3>Filings · 90d</h3>${filRows||'<span class="muted">none</span>'}</div>
   </div>`;
   el.querySelectorAll('.sigrow[data-sym]').forEach(r =>
-    r.onclick = () => selectCompany(r.dataset.sym));
-  el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    r.onclick = () => selectCompany(r.dataset.sym, {scroll: true}));
+  if (opts.scroll)  // only on explicit clicks — never on background refresh
+    el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
 /* ---------------- performance ---------------- */
@@ -532,6 +543,10 @@ async function refresh() {
         [j('/api/pulse?hours=48&min_materiality=5&limit=60'), j('/api/alerts?limit=20')]);
     } else if (TAB === 'signals') {
       state.signals = await j('/api/signals?limit=1000');
+      /* background tick: refresh data IN PLACE — full re-render resets
+         scroll and re-jumps to the detail (user-reported, 2026-08-09) */
+      if ($('#sigbody')) { redrawSignalsBody(); $('#clock').textContent =
+        new Date().toLocaleTimeString(); return; }
     } else if (TAB === 'performance') {
       state.performance = await j('/api/performance');
     } else if (TAB === 'health') {

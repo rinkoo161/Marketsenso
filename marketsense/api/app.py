@@ -147,23 +147,25 @@ def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
         latest: dict[str, object] = {}
         for s in rows:
             latest.setdefault(s.symbol, s)
-        out = [s for s in latest.values()
-               if s.conviction >= min_conviction
-               and (not stance or s.stance == stance)]
-        out.sort(key=lambda s: -s.conviction)
-        out = out[:limit]
+        candidates = [s for s in latest.values()
+                      if s.conviction >= min_conviction
+                      and (not stance or s.stance == stance)]
+        candidates.sort(key=lambda s: -s.conviction)
 
-        # adverse-news flags for exactly the symbols being returned
+        # Adverse-news flags across ALL signal-bearing symbols — computed
+        # BEFORE the ranking cut, because an adverse event drags conviction
+        # down and would sort exactly the rows that need a sell indication
+        # out of view (live finding: EMCURE/EIHOTEL flagged but unranked).
         d7 = datetime.now(timezone.utc) - timedelta(days=7)
         flags: dict[str, dict] = {}
-        if out:
+        if candidates:
             adverse = db.execute(
                 select(Filing.symbol, FilingClassification.category,
                        FilingClassification.materiality,
                        FilingClassification.sentiment,
                        FilingClassification.observed_at)
                 .join(Filing, Filing.id == FilingClassification.filing_id)
-                .where(Filing.symbol.in_([s.symbol for s in out]),
+                .where(Filing.symbol.in_([s.symbol for s in candidates]),
                        FilingClassification.model_version == A2_V,
                        FilingClassification.observed_at >= d7,
                        FilingClassification.materiality >= 7,
@@ -173,6 +175,13 @@ def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
                 flags.setdefault(sym, {
                     "category": cat, "materiality": mat, "sentiment": sent,
                     "days_ago": (datetime.now(timezone.utc) - at).days})
+
+        # top-N by conviction ∪ every flagged row (sell indications must
+        # never be ranked out of the table)
+        out = candidates[:limit]
+        seen = {s.symbol for s in out}
+        out += [s for s in candidates[limit:] if s.symbol in flags
+                and s.symbol not in seen]
 
     def _upside(s) -> float | None:
         # conservative: low end of target vs high end of entry

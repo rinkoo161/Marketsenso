@@ -525,7 +525,7 @@ async function refresh() {
       [state.pulse, state.alerts] = await Promise.all(
         [j('/api/pulse?hours=48&min_materiality=5&limit=60'), j('/api/alerts?limit=20')]);
     } else if (TAB === 'signals') {
-      state.signals = await j('/api/signals?limit=200');
+      state.signals = await j('/api/signals?limit=1000');
     } else if (TAB === 'performance') {
       state.performance = await j('/api/performance');
     } else if (TAB === 'health') {

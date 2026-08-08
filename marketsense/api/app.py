@@ -131,7 +131,7 @@ def pulse(hours: int = Query(24, le=168), min_materiality: int = Query(5, ge=0, 
 
 @app.get("/api/signals")
 def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
-            limit: int = Query(50, le=200)):
+            limit: int = Query(50, le=1000)):
     """Latest signal per symbol, ranked by conviction. Suppressed rows
     included — A6 vetoes are information, not absence. Each row carries
     `news_flag`: the freshest adverse high-materiality event (≤7d,

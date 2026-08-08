@@ -398,6 +398,35 @@ class Surveillance(Base):
     )
 
 
+class PromoterPledge(Base):
+    """Quarterly promoter encumbrance from the SHP XBRL's
+    ShareholdingOfPromoterAndPromoterGroup aggregate context. This is the
+    number the brief's >25%-pledge hard block needs; Reg-31 attachments
+    turned out to be scanned PDFs, while every quarterly shareholding-
+    pattern submission carries a structured XBRL (verified NITCO
+    2026-08-08: 59.19% of promoter holding encumbered). Append-only per
+    NSE recordId; a row with NULL encumbered_pct is a sentinel meaning
+    'looked, no usable SHP XBRL' so cold-start doesn't retry forever."""
+
+    __tablename__ = "promoter_pledge"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    shp_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    promoter_pct: Mapped[float | None]        # promoter+group % of capital
+    encumbered_shares: Mapped[float | None]
+    encumbered_pct: Mapped[float | None]      # % of PROMOTER HOLDING encumbered
+    encumbered_pct_of_total: Mapped[float | None]
+    record_id: Mapped[str] = mapped_column(String(32))   # NSE recordId (dedup)
+    xbrl_url: Mapped[str | None] = mapped_column(Text)   # evidence
+    event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_at: Mapped[datetime] = _observed_at()
+
+    __table_args__ = (
+        UniqueConstraint("symbol", "record_id", name="uq_pledge_record"),
+    )
+
+
 # ======================================================= phase 4: signals
 
 class Signal(Base):

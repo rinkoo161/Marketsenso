@@ -13,12 +13,14 @@ Battery implemented vs deferred (honesty ledger):
   IMPLEMENTED: GSM/ASM stages · illiquidity (median 20d turnover) ·
   statutory auditor resignation ≤365d · regulatory action ≤180d ·
   circuit-lock frequency (close==high==low days) · penny price ·
-  trade-for-trade series · pledge ACTIVITY ≤180d · microcap where market
-  cap is computable from results XBRL (paid-up capital / face value).
-  UNAVAILABLE (named in every assessment): pledge PERCENTAGE (needs Reg-31
-  XBRL parsing) · going-concern flag (needs audit-report text) · free
-  float (needs full shareholding parse) · portfolio exposure caps (needs
-  a holdings source — Phase 5).
+  trade-for-trade series · pledge ACTIVITY ≤180d · promoter pledge %
+  from quarterly SHP XBRL (v2: >25% of promoter holding = hard block,
+  >10% = penalty; see pledge.py) · microcap where market cap is
+  computable from results XBRL (paid-up capital / face value).
+  UNAVAILABLE (named in every assessment): going-concern flag (needs
+  audit-report text) · free float (needs full shareholding parse) ·
+  portfolio exposure caps (needs a holdings source — Phase 5) · pledge %
+  only for symbols whose SHP XBRL hasn't been fetched/parsed yet.
 """
 from __future__ import annotations
 
@@ -34,21 +36,23 @@ from marketsense.db.models import (
     FilingClassification,
     FinancialsQuarterly,
     PriceDaily,
+    PromoterPledge,
     Score,
     Surveillance,
 )
 
 log = get_logger("a6.engine")
 
-MODEL_VERSION = "a6-v1"
+MODEL_VERSION = "a6-v2"  # v2: promoter pledge % (SHP XBRL) hard block
 
 MIN_MEDIAN_TURNOVER_LACS = 10.0   # ₹10L/day — below this, exits are fantasy
 PENNY_CLOSE = 5.0
 MICROCAP_CR = 300.0
 CIRCUIT_LOCK_HARD = 0.20          # >20% of last 60 sessions locked
+PLEDGE_HARD_PCT = 25.0            # brief §: >25% of promoter holding pledged
+PLEDGE_PENALTY_PCT = 10.0
 
 UNAVAILABLE = [
-    "pledge_pct (needs Reg-31 XBRL parse)",
     "going_concern (needs audit-report text)",
     "free_float (needs full shareholding parse)",
     "portfolio_caps (needs holdings source — Phase 5)",
@@ -122,13 +126,34 @@ def assess_symbol(db, symbol: str, *, now: datetime) -> dict:
                FilingClassification.observed_at >= d180)) or 0
     if reg:
         penalties.append(f"regulatory action filings in last 180d ({reg})")
+    # --- promoter pledge % (quarterly SHP XBRL; NULL pct = sentinel row) ---
+    pl = db.scalars(
+        select(PromoterPledge)
+        .where(PromoterPledge.symbol == symbol,
+               PromoterPledge.encumbered_pct.isnot(None))
+        .order_by(PromoterPledge.observed_at.desc()).limit(1)).first()
+    if pl:
+        checks["promoter_pledge_pct"] = pl.encumbered_pct
+        checks["pledge_as_of"] = (pl.shp_date.date().isoformat()
+                                  if pl.shp_date else None)
+        if (pl.promoter_pct or 0) > 0 and pl.encumbered_pct > PLEDGE_HARD_PCT:
+            hard.append(f"promoter pledge {pl.encumbered_pct:.1f}% of "
+                        f"promoter holding (> {PLEDGE_HARD_PCT:.0f}%, "
+                        f"SHP {checks['pledge_as_of']})")
+        elif pl.encumbered_pct > PLEDGE_PENALTY_PCT:
+            penalties.append(f"promoter pledge {pl.encumbered_pct:.1f}% of "
+                             f"promoter holding")
+
     pledge = db.scalar(
         select(func.count()).select_from(Filing)
         .where(Filing.symbol == symbol, Filing.feed == "encumbrance",
                Filing.observed_at >= d180)) or 0
     if pledge:
-        penalties.append(f"pledge/encumbrance activity in last 180d ({pledge}); "
-                         "pledge % unavailable")
+        # fresh activity can postdate the quarterly snapshot — keep the
+        # penalty either way, but only claim ignorance when we ARE ignorant
+        suffix = "" if pl else "; pledge % unavailable"
+        penalties.append(f"pledge/encumbrance activity in last 180d "
+                         f"({pledge}){suffix}")
 
     # --- microcap where computable ---
     fin = db.scalars(
@@ -151,10 +176,13 @@ def assess_symbol(db, symbol: str, *, now: datetime) -> dict:
 
     verdict = "hard_block" if hard else ("penalty" if penalties else "clear")
     score = 0.0 if hard else max(0.0, 100.0 - 15.0 * len(penalties))
+    unavailable = list(UNAVAILABLE)
+    if not pl:
+        unavailable.append("pledge_pct (SHP XBRL not yet fetched)")
     return {
         "verdict": verdict, "score": score,
         "hard_blocks": hard, "penalties": penalties,
-        "checks": checks, "unavailable": UNAVAILABLE,
+        "checks": checks, "unavailable": unavailable,
     }
 
 

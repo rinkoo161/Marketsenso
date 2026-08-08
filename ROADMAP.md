@@ -16,8 +16,18 @@ upside% + news-based sell indications) + read-only ltp-monitor bridge
 Monday 2026-08-11; observed performance verdicts start ~2026-08-17.
 
 Still open (tracked below): Kite 5y depth · IT-form XBRL (insider
-direction) · pledge-% parse · news-layer cross-industry propagation ·
-5 class-C reconciliation values · balance-sheet facts from H1/annual.
+direction) · news-layer cross-industry propagation · 5 class-C
+reconciliation values · balance-sheet facts from H1/annual.
+
+**Pledge % SHIPPED 2026-08-08 (a6-v2).** Reg-31 attachments proved to be
+scanned PDFs — the structured source is the quarterly SHP XBRL
+(`corporate-share-holdings-master` → `xbrl` URL, promoter-aggregate
+context; percent facts are fractions ×100, see `a6_risk/pledge.py`).
+Brief's >25%-of-promoter-holding hard block + >10% penalty live in A6;
+sentinel rows stop retry loops; refresh is event-driven off the
+shareholding_pattern feed (2 budgeted req/symbol, 300/night in the EOD
+chain until cold start completes). Verified live: NITCO 53.8% →
+hard_block, THEMISMED 43.4% (the very Reg-31 PDF filer sampled).
 
 ## PENDING WORK
 

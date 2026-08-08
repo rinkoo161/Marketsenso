@@ -70,6 +70,8 @@ main{padding:16px 18px;max-width:1500px;margin:0 auto}
 .tbl td.num,.tbl th.num{text-align:right}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tbody tr:hover{background:var(--panel2)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--text)}
 
 .chip{display:inline-block;padding:2px 9px;border:1px solid var(--line);
   border-radius:999px;font-size:11px;color:var(--dim);
@@ -184,34 +186,95 @@ function thesisHtml(t) {
       filings ${esc(JSON.stringify((t.evidence?.event_filings||[]).slice(0,6)))}</div>
   </div>`;
 }
+/* sorting state: click a header to sort, click again to flip */
+let SORT = {key: 'conviction', dir: -1};
+const STANCE_ORDER = {buy: 5, accumulate: 4, hold: 3, reduce: 2, exit: 1,
+                      suppressed: 0};
+
+function reco(s) {
+  /* The recommendation IS A7's stance; adverse news within 7d that
+     contradicts a long stance downgrades the DISPLAY to a caution —
+     the honest read is "await reassessment", not a silent buy. */
+  const news = s.news_flag;
+  if (s.stance === 'suppressed') return {label: 'AVOID', cls: 'dn'};
+  if (news && (s.stance === 'buy' || s.stance === 'accumulate'))
+    return {label: 'CAUTION', cls: 'amber',
+            why: `adverse ${news.category} m${news.materiality} ${news.days_ago}d ago`};
+  if (news && (s.stance === 'hold'))
+    return {label: 'SELL RISK', cls: 'dn',
+            why: `adverse ${news.category} m${news.materiality}`};
+  return {label: {buy:'BUY', accumulate:'ADD', hold:'HOLD',
+                  reduce:'REDUCE', exit:'SELL'}[s.stance] || s.stance.toUpperCase(),
+          cls: {buy:'up', accumulate:'up', hold:'', reduce:'dn', exit:'dn'}[s.stance] || ''};
+}
+
+const SORT_VAL = {
+  stance: s => STANCE_ORDER[s.stance] ?? -1,
+  conviction: s => s.conviction,
+  confidence: s => s.confidence,
+  symbol: s => s.symbol,
+  risk: s => s.risk_verdict,
+  upside: s => s.upside_pct ?? -999,
+  size: s => s.size_pct ?? -1,
+  horizon: s => s.horizon || '',
+  entry: s => (s.entry && s.entry[0]) ?? -1,
+  target: s => (s.target && s.target[0]) ?? -1,
+  stop: s => s.invalidation ?? -1,
+  news: s => s.news_flag ? s.news_flag.materiality : -1,
+  reco: s => reco(s).label,
+};
+
 function renderSignals() {
-  const sigs = state.signals || [];
-  const rows = sigs.map(s => `
+  const sigs = [...(state.signals || [])];
+  const val = SORT_VAL[SORT.key] || SORT_VAL.conviction;
+  sigs.sort((a, b) => {
+    const x = val(a), y = val(b);
+    return (x < y ? -1 : x > y ? 1 : 0) * SORT.dir;
+  });
+  const arrow = (k) => SORT.key === k ? (SORT.dir < 0 ? ' ▾' : ' ▴') : '';
+  const th = (k, label, num) =>
+    `<th class="${num?'num ':''}sortable" data-key="${k}">${label}${arrow(k)}</th>`;
+
+  const rows = sigs.map(s => {
+    const r = reco(s);
+    const news = s.news_flag;
+    return `
     <tr class="sigrow ${SELECTED===s.symbol?'sel':''}" data-sym="${esc(s.symbol)}">
+      <td><span class="chip ${r.cls}" ${r.why?`title="${esc(r.why)}"`:''}>${r.label}</span></td>
       <td class="stance-${s.stance}">${esc(s.stance)}</td>
       <td class="num"><span class="convbar" style="width:${Math.max(4,s.conviction*0.45)}px"></span>${fmt(s.conviction)}</td>
-      <td class="num muted">${fmt(s.confidence,2)}</td>
+      <td class="num muted">${s.confidence!=null?fmt(100*s.confidence,0)+'%':'–'}</td>
       <td><b>${esc(s.symbol)}</b></td>
+      <td class="num ${s.upside_pct>0?'up':s.upside_pct<0?'dn':'muted'}">${s.upside_pct!=null?fmt(s.upside_pct,1)+'%':'–'}</td>
+      <td>${news?`<span class="dn" title="${esc(news.category)} m${news.materiality}, ${news.days_ago}d ago">▼ ${esc(news.category).slice(0,14)}</span>`:'<span class="muted">–</span>'}</td>
       <td><span class="chip ${s.risk_verdict==='clear'?'':'dn'}">${esc(s.risk_verdict)}</span></td>
       <td class="num">${s.size_pct??'–'}%</td>
       <td class="muted">${esc(s.horizon||'')}</td>
       <td class="num muted">${s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}</td>
       <td class="num muted">${s.target&&s.target[0]!=null?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}</td>
       <td class="num">${fmt(s.invalidation,1)}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   $('#main').innerHTML = `
     <div class="split">
       <div class="master card" style="padding:0">
         <table class="tbl"><thead><tr>
-          <th>stance</th><th class="num">conviction</th><th class="num">conf</th>
-          <th>symbol</th><th>risk</th><th class="num">size</th><th>horizon</th>
-          <th class="num">entry</th><th class="num">target</th><th class="num">stop</th>
+          ${th('reco','reco')}${th('stance','stance')}
+          ${th('conviction','conviction',1)}${th('confidence','conf',1)}
+          ${th('symbol','symbol')}${th('upside','upside',1)}${th('news','news')}
+          ${th('risk','risk')}${th('size','size',1)}${th('horizon','horizon')}
+          ${th('entry','entry',1)}${th('target','target',1)}${th('stop','stop',1)}
         </tr></thead><tbody>${rows}</tbody></table>
       </div>
       <div class="rail" id="detail">
         <div class="card muted">select a signal ←</div>
       </div>
     </div>`;
+  document.querySelectorAll('th.sortable').forEach(h => h.onclick = () => {
+    const k = h.dataset.key;
+    SORT = {key: k, dir: SORT.key === k ? -SORT.dir : -1};
+    renderSignals();
+  });
   document.querySelectorAll('.sigrow').forEach(r => r.onclick =
     () => selectCompany(r.dataset.sym));
   if (SELECTED) selectCompany(SELECTED);
@@ -250,7 +313,7 @@ async function selectCompany(sym) {
       <div style="margin-bottom:6px">
         <span class="stance-${s.stance} big">${esc(s.stance)}</span>
         <span class="num"> ${fmt(s.conviction)}</span>
-        <span class="muted num">conf ${fmt(s.confidence,2)}</span>
+        <span class="muted num">conf ${s.confidence!=null?fmt(100*s.confidence,0)+'%':'–'}</span>
         <span class="chip ${s.risk_verdict==='clear'?'':'dn'}">${esc(s.risk_verdict)}</span></div>
       <div class="muted num">entry ${s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}
         · target ${s.target&&s.target[0]!=null?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}

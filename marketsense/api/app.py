@@ -133,20 +133,53 @@ def pulse(hours: int = Query(24, le=168), min_materiality: int = Query(5, ge=0, 
 def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
             limit: int = Query(50, le=200)):
     """Latest signal per symbol, ranked by conviction. Suppressed rows
-    included — A6 vetoes are information, not absence."""
-    from marketsense.db.models import Signal
+    included — A6 vetoes are information, not absence. Each row carries
+    `news_flag`: the freshest adverse high-materiality event (≤7d,
+    m≥7, sentiment ≤ −0.3) so the UI can indicate sell/caution pressure
+    from news against the standing stance."""
+    from marketsense.agents.a2_docintel.classifier import MODEL_VERSION as A2_V
+    from marketsense.db.models import Filing, FilingClassification, Signal
     from sqlalchemy import select
 
     with session() as db:
         rows = list(db.scalars(
             select(Signal).order_by(Signal.as_of.desc()).limit(2000)))
-    latest: dict[str, object] = {}
-    for s in rows:
-        latest.setdefault(s.symbol, s)
-    out = [s for s in latest.values()
-           if s.conviction >= min_conviction
-           and (not stance or s.stance == stance)]
-    out.sort(key=lambda s: -s.conviction)
+        latest: dict[str, object] = {}
+        for s in rows:
+            latest.setdefault(s.symbol, s)
+        out = [s for s in latest.values()
+               if s.conviction >= min_conviction
+               and (not stance or s.stance == stance)]
+        out.sort(key=lambda s: -s.conviction)
+        out = out[:limit]
+
+        # adverse-news flags for exactly the symbols being returned
+        d7 = datetime.now(timezone.utc) - timedelta(days=7)
+        flags: dict[str, dict] = {}
+        if out:
+            adverse = db.execute(
+                select(Filing.symbol, FilingClassification.category,
+                       FilingClassification.materiality,
+                       FilingClassification.sentiment,
+                       FilingClassification.observed_at)
+                .join(Filing, Filing.id == FilingClassification.filing_id)
+                .where(Filing.symbol.in_([s.symbol for s in out]),
+                       FilingClassification.model_version == A2_V,
+                       FilingClassification.observed_at >= d7,
+                       FilingClassification.materiality >= 7,
+                       FilingClassification.sentiment <= -0.3)
+                .order_by(FilingClassification.materiality.desc())).all()
+            for sym, cat, mat, sent, at in adverse:
+                flags.setdefault(sym, {
+                    "category": cat, "materiality": mat, "sentiment": sent,
+                    "days_ago": (datetime.now(timezone.utc) - at).days})
+
+    def _upside(s) -> float | None:
+        # conservative: low end of target vs high end of entry
+        if s.target_low and s.entry_high and s.entry_high > 0:
+            return round(100.0 * (s.target_low / s.entry_high - 1.0), 1)
+        return None
+
     return [
         {
             "symbol": s.symbol, "stance": s.stance,
@@ -155,9 +188,11 @@ def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
             "entry": [s.entry_low, s.entry_high],
             "target": [s.target_low, s.target_high],
             "invalidation": s.invalidation, "size_pct": s.size_pct,
+            "upside_pct": _upside(s),
+            "news_flag": flags.get(s.symbol),
             "thesis": s.thesis, "as_of": s.as_of, "signal_id": s.id,
         }
-        for s in out[:limit]
+        for s in out
     ]
 
 

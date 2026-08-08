@@ -36,7 +36,9 @@ log = get_logger("a7.engine")
 
 # v2 (2026-08-09): confidence scales with weight coverage (missing axes
 # cost confidence rather than being normalised away)
-MODEL_VERSION = f"a7-v2-{PROFILES_VERSION}"
+# v3 (2026-08-09): stance-aware level semantics — exit/suppressed carry
+# no levels or size; reduce/hold keep only the stop
+MODEL_VERSION = f"a7-v3-{PROFILES_VERSION}"
 HYSTERESIS = 8.0
 EVENT_WINDOW_D = 30
 
@@ -363,6 +365,19 @@ def fuse_symbol(db, symbol: str, *, profile: str = "default",
 
     stance = _stance(conviction, risk_verdict)
     levels = _levels(inputs.get("a4"), profile)
+    size = _size_pct(inputs.get("a4"), risk_verdict, profile)
+    # Long-only level semantics per stance (audit 2026-08-09: an 'exit'
+    # signal displayed an entry zone and +79% upside — contradictory and
+    # dangerous). exit/suppressed: no levels, no size — the action is to
+    # be out. reduce/hold: keep the STOP as the sell-the-rest trigger for
+    # existing holders, but no entry/target/size invitation.
+    if stance in ("exit", "suppressed"):
+        levels = {}
+        size = None
+    elif stance in ("reduce", "hold"):
+        levels = {"invalidation": levels.get("invalidation"),
+                  "level_basis": levels.get("level_basis")}
+        size = None
     thesis = _thesis(symbol, {**inputs, **({"a6": a6} if a6 else {})},
                      ev_evidence, a6, conviction, weights=weights,
                      stop=levels.get("invalidation"))
@@ -373,7 +388,7 @@ def fuse_symbol(db, symbol: str, *, profile: str = "default",
         "symbol": symbol, "profile": profile, "stance": stance,
         "conviction": conviction, "confidence": confidence,
         "horizon": HORIZON[profile], "risk_verdict": risk_verdict,
-        "size_pct": _size_pct(inputs.get("a4"), risk_verdict, profile),
+        "size_pct": size,
         "thesis": thesis, **levels,
     }
 

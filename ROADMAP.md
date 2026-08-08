@@ -5,6 +5,20 @@ Build brief: `~/Downloads/nse_market_intelligence_build_prompt.md` (§ numbers
 below refer to it). This file is the cross-session source of truth — append a
 section per release; update PENDING WORK as part of the change, not after.
 
+## STATUS (2026-08-09): ALL FIVE PHASES DELIVERED
+
+Ingestion (48h-soaked, 100% coverage) → classification (gate 95%/0.744) →
+A3/A4/A5 scores → A6 veto + A7 conviction/theses → backtest (8,333 obs,
+monotonic conviction ordering) → A8 alerts (Telegram LIVE, test delivered
+2026-08-09) + dashboard (ltp-monitor design system, sortable signals with
+upside% + news-based sell indications) + read-only ltp-monitor bridge
+(v59.59, running in the user's v59.60). First full live market day:
+Monday 2026-08-11; observed performance verdicts start ~2026-08-17.
+
+Still open (tracked below): Kite 5y depth · IT-form XBRL (insider
+direction) · pledge-% parse · news-layer cross-industry propagation ·
+5 class-C reconciliation values · balance-sheet facts from H1/annual.
+
 ## PENDING WORK
 
 **Phase 1 — COMPLETE.** 48h soak PASSED 2026-08-07 13:05 IST (56h+ continuous

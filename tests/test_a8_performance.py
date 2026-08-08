@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 import marketsense.agents.a8_alerts.engine as a8
 from marketsense.db.models import Alert, PriceDaily, Signal, SignalPerformance
+from marketsense.agents.a7_fusion.engine import MODEL_VERSION as A7_V
 from marketsense.performance.tracker import measure, summary
 
 NOW = datetime(2026, 8, 8, 12, 0, tzinfo=timezone.utc)
@@ -58,7 +59,7 @@ def test_performance_measures_only_elapsed_windows(db_factory):
             db.add(PriceDaily(symbol="IDX:Nifty 500", trade_date=day,
                               close=1000.0 + i, source="index"))
         db.add(Signal(symbol="PERFCO", profile="default", stance="buy",
-                      conviction=75.0, confidence=0.5, model_version="t",
+                      conviction=75.0, confidence=0.5, model_version=A7_V,
                       as_of=NOW - timedelta(days=30)))
         db.commit()
     r = measure(db_factory)

@@ -83,9 +83,17 @@ def measure(db_factory) -> dict:
 
 
 def summary(db_factory) -> dict:
-    """Aggregates for the API/dashboard: by stance × window."""
+    """Aggregates for the API/dashboard: by stance × window, CURRENT
+    model version only — semantic re-issues (v1→v3 in one day) would
+    otherwise blend old-meaning rows into the same aggregate. Historical
+    versions stay queryable in the table for attribution."""
+    from marketsense.agents.a7_fusion.engine import MODEL_VERSION
+
     with db_factory() as db:
-        rows = db.scalars(select(SignalPerformance)).all()
+        rows = db.scalars(
+            select(SignalPerformance)
+            .join(Signal, Signal.id == SignalPerformance.signal_id)
+            .where(Signal.model_version == MODEL_VERSION)).all()
     out: dict = {}
     for r in rows:
         b = out.setdefault(r.stance, {}).setdefault(r.window, {"n": 0, "ex": []})

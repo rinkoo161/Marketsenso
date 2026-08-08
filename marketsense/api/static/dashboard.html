@@ -1,67 +1,123 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<title>MarketSense</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketSense</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9;
-          --dim:#8b949e; --green:#3fb950; --red:#f85149; --amber:#d29922;
-          --blue:#58a6ff; }
-  * { box-sizing:border-box; margin:0; }
-  body { background:var(--bg); color:var(--fg);
-         font:13px/1.45 -apple-system, "SF Mono", Menlo, monospace; }
-  header { display:flex; align-items:center; gap:16px; padding:10px 16px;
-           border-bottom:1px solid var(--border); position:sticky; top:0;
-           background:var(--bg); z-index:5; }
-  header h1 { font-size:15px; color:var(--blue); }
-  header .stat { color:var(--dim); font-size:12px; }
-  nav button { background:none; border:1px solid var(--border); color:var(--fg);
-               padding:5px 12px; border-radius:6px; cursor:pointer; font:inherit; }
-  nav button.on { border-color:var(--blue); color:var(--blue); }
-  main { padding:14px 16px; max-width:1280px; margin:0 auto; }
-  table { border-collapse:collapse; width:100%; }
-  th, td { text-align:left; padding:5px 9px; border-bottom:1px solid var(--border);
-           white-space:nowrap; }
-  th { color:var(--dim); font-weight:normal; position:sticky; top:47px;
-       background:var(--bg); }
-  td.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .sev-high { color:var(--red); font-weight:bold; }
-  .sev-medium { color:var(--amber); }
-  .sev-low { color:var(--dim); }
-  .stance-buy { color:var(--green); font-weight:bold; }
-  .stance-accumulate { color:var(--green); }
-  .stance-hold { color:var(--dim); }
-  .stance-reduce, .stance-exit { color:var(--red); }
-  .stance-suppressed { color:var(--red); text-decoration:line-through; }
-  .bar { display:inline-block; height:8px; background:var(--blue);
-         border-radius:2px; vertical-align:middle; }
-  .pill { display:inline-block; padding:1px 7px; border-radius:10px;
-          border:1px solid var(--border); font-size:11px; color:var(--dim); }
-  .ok { color:var(--green); } .bad { color:var(--red); }
-  details { margin:2px 0; }
-  details summary { cursor:pointer; }
-  .thesis { background:var(--panel); border:1px solid var(--border);
-            border-radius:6px; padding:8px 12px; margin:6px 0;
-            white-space:normal; max-width:900px; }
-  .thesis h4 { font-size:12px; color:var(--dim); margin:6px 0 2px; }
-  .thesis li { margin-left:18px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-          gap:12px; }
-  .card { background:var(--panel); border:1px solid var(--border);
-          border-radius:8px; padding:12px; }
-  .card h3 { font-size:12px; color:var(--dim); margin-bottom:8px; }
-  .big { font-size:22px; }
-  .muted { color:var(--dim); }
-  #err { color:var(--red); padding:8px 16px; display:none; }
-  .sigrow { cursor:pointer; }
-  .sigrow:hover td { background:var(--panel); }
-  .sigrow.sel td { background:#1c2432; }
+/* Design system ported from ltp-monitor's dashboard (Azia dark base +
+   QC-reference light override, 2026-08-09) so the two apps read as
+   siblings: same variables, same values, same table/chip/card idioms. */
+:root{
+  --bg:#0B0E14; --panel:#151A23; --panel2:#1B212C; --line:#2C3542;
+  --text:#E8ECF3; --dim:#97A3B8; --muted:#6C7A91;
+  --accent:#8B5CF6;
+  --up:#2FD07A; --dn:#FF5C6C;
+  --amber:#FFC107; --blue:#3D9BFF;
+}
+[data-theme="light"]{
+  --bg:#FFFFFF; --panel:#FFFFFF; --panel2:#F7F8FA; --line:#E6E8EC;
+  --text:#16181D; --dim:#5B6472; --muted:#8A93A2;
+  --accent:#2563EB;
+  --up:#0E9F6E; --dn:#D92D20;
+  --amber:#B45309; --blue:#2563EB;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);
+  font-family:'Roboto','Segoe UI',system-ui,sans-serif;font-size:13px;
+  font-weight:400;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased}
+.mono,.num{font-family:'Roboto Mono',monospace;font-variant-numeric:tabular-nums}
+b,strong{font-weight:600}
+h1,h2,h3{font-weight:600;letter-spacing:-.01em}
+
+header{display:flex;align-items:center;gap:14px;padding:10px 18px;
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;
+  background:var(--bg)}
+header h1{font-size:15px;color:var(--accent)}
+header .stat{color:var(--dim);font-size:12px}
+header .spacer{flex:1}
+nav{display:flex;gap:6px}
+nav button{background:none;border:1px solid var(--line);color:var(--dim);
+  padding:6px 14px;border-radius:8px;cursor:pointer;font:inherit;
+  font-weight:500}
+nav button:hover{background:var(--panel2);color:var(--text)}
+nav button.on{border-color:var(--accent);color:var(--accent)}
+#themeBtn{background:none;border:1px solid var(--line);color:var(--dim);
+  border-radius:8px;padding:5px 10px;cursor:pointer;font-size:14px}
+
+main{padding:16px 18px;max-width:1500px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;margin-bottom:12px}
+.card h3{font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:10px;font-weight:500}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:12px;margin-bottom:12px}
+.big{font-size:22px}
+.muted{color:var(--muted)} .dim{color:var(--dim)}
+.up{color:var(--up)} .dn{color:var(--dn)} .amber{color:var(--amber)}
+
+.tbl{border-collapse:collapse;width:100%}
+.tbl th{font-weight:500;font-size:11px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted);
+  border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;
+  position:sticky;top:49px;background:var(--bg);white-space:nowrap}
+.tbl td{border-bottom:1px solid var(--line);padding:9px 12px;
+  white-space:nowrap}
+.tbl td.num,.tbl th.num{text-align:right}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover{background:var(--panel2)}
+
+.chip{display:inline-block;padding:2px 9px;border:1px solid var(--line);
+  border-radius:999px;font-size:11px;color:var(--dim);
+  background:var(--panel2);line-height:1.5;white-space:nowrap}
+.chip.up{color:var(--up);border-color:var(--up)}
+.chip.dn{color:var(--dn);border-color:var(--dn)}
+.chip.amber{color:var(--amber);border-color:var(--amber)}
+
+.stance-buy{color:var(--up);font-weight:600}
+.stance-accumulate{color:var(--up)}
+.stance-hold{color:var(--dim)}
+.stance-reduce{color:var(--dn)}
+.stance-exit{color:var(--dn);font-weight:600}
+.stance-suppressed{color:var(--dn);text-decoration:line-through}
+.sev-high{color:var(--dn);font-weight:600}
+.sev-medium{color:var(--amber)}
+.sev-low{color:var(--muted)}
+
+.convbar{display:inline-block;height:7px;border-radius:3px;
+  background:var(--accent);vertical-align:middle;margin-right:7px}
+
+/* signals master-detail: table gets the room it needs; detail rail
+   fixed-width; stacks below 1100px */
+.split{display:flex;gap:14px;align-items:flex-start}
+.split .master{flex:1 1 auto;min-width:0;overflow-x:auto;
+  max-height:calc(100vh - 120px);overflow-y:auto}
+.split .rail{flex:0 0 470px;max-height:calc(100vh - 120px);overflow-y:auto}
+@media (max-width:1100px){
+  .split{flex-direction:column}
+  .split .rail{flex:1 1 auto;width:100%;max-height:none}
+}
+.sigrow{cursor:pointer}
+.sigrow.sel td{background:var(--panel2);
+  box-shadow:inset 2px 0 0 var(--accent)}
+
+.thesis h4{font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);margin:10px 0 4px;font-weight:500}
+.thesis ul{margin-left:18px}
+.thesis li{margin:2px 0;white-space:normal}
+details summary{cursor:pointer;color:var(--dim)}
+#err{color:var(--dn);padding:8px 18px;display:none}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
 <header>
-  <h1>MarketSense</h1>
+  <h1>⌁ MarketSense</h1>
   <nav>
     <button data-tab="pulse" class="on">Pulse</button>
     <button data-tab="signals">Signals</button>
@@ -69,14 +125,16 @@
     <button data-tab="health">Health</button>
   </nav>
   <span class="stat" id="topstat">…</span>
+  <span class="spacer"></span>
   <span class="stat muted" id="clock"></span>
+  <button id="themeBtn" title="toggle theme">◐</button>
 </header>
 <div id="err"></div>
 <main id="main">loading…</main>
 
 <script>
 const $ = (s) => document.querySelector(s);
-let TAB = 'pulse';
+let TAB = 'pulse', SELECTED = null;
 const state = {};
 
 async function j(url) {
@@ -92,25 +150,25 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g,
 function renderPulse() {
   const evs = state.pulse || [], alerts = state.alerts || [];
   const rows = evs.map(e => `<tr>
-    <td class="muted">${esc((e.event_at||'').slice(5,16).replace('T',' '))}</td>
+    <td class="muted num">${esc((e.event_at||'').slice(5,16).replace('T',' '))}</td>
     <td><b>${esc(e.symbol||'?')}</b></td>
-    <td>${esc(e.category)}</td>
+    <td><span class="chip">${esc(e.category)}</span></td>
     <td class="num ${e.materiality>=8?'sev-high':e.materiality>=6?'sev-medium':''}">m${e.materiality}</td>
-    <td class="num">${e.sentiment>0.15?'<span class="ok">+</span>':e.sentiment<-0.15?'<span class="bad">−</span>':'='}</td>
-    <td style="white-space:normal;max-width:520px">${esc(e.summary)}
-      ${e.link?` <a class="muted" href="${esc(e.link)}" target="_blank">doc</a>`:''}</td>
+    <td class="num">${e.sentiment>0.15?'<span class="up">▲</span>':e.sentiment<-0.15?'<span class="dn">▼</span>':'<span class="muted">•</span>'}</td>
+    <td style="white-space:normal;max-width:560px">${esc(e.summary)}
+      ${e.link?` <a href="${esc(e.link)}" target="_blank">doc</a>`:''}</td>
   </tr>`).join('');
-  const arows = alerts.slice(0,12).map(a => `<div>
-    <span class="sev-${a.severity}">[${a.severity}]</span>
-    <b>${esc(a.symbol||'')}</b> ${esc(a.category)} — ${esc(a.message).slice(0,110)}
-    <span class="muted">${esc((a.at||'').slice(5,16).replace('T',' '))}</span></div>`).join('');
+  const arows = alerts.slice(0,12).map(a => `<div style="margin:3px 0">
+    <span class="sev-${a.severity}">●</span>
+    <b>${esc(a.symbol||'')}</b> <span class="chip">${esc(a.category)}</span>
+    ${esc(a.message).slice(0,100)}
+    <span class="muted num">${esc((a.at||'').slice(5,16).replace('T',' '))}</span></div>`).join('');
   $('#main').innerHTML = `
-    <div class="grid" style="margin-bottom:12px">
-      <div class="card"><h3>Recent alerts</h3>${arows||'<span class="muted">none yet</span>'}</div>
-    </div>
-    <table><thead><tr><th>event at</th><th>symbol</th><th>category</th>
-    <th>mat</th><th>dir</th><th>summary</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan=6 class="muted">no high-materiality events in window</td></tr>'}</tbody></table>`;
+    <div class="card"><h3>🔔 Recent alerts</h3>${arows||'<span class="muted">none yet</span>'}</div>
+    <div class="card" style="padding:0"><table class="tbl">
+    <thead><tr><th>event at</th><th>symbol</th><th>category</th>
+    <th class="num">mat</th><th class="num">dir</th><th>summary</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan=6 class="muted">no high-materiality events in window</td></tr>'}</tbody></table></div>`;
 }
 
 /* ---------------- signals ---------------- */
@@ -120,29 +178,37 @@ function thesisHtml(t) {
   return `<div class="thesis">
     <h4>for</h4><ul>${li(t.for)||'<li class="muted">—</li>'}</ul>
     <h4>against</h4><ul>${li(t.against)||'<li class="muted">—</li>'}</ul>
-    <h4>what changes the view</h4><div>${esc(t.view_changer)}</div>
-    <h4>evidence</h4><div class="muted">scores ${esc(JSON.stringify(t.evidence?.score_ids||{}))}
-      · filings ${esc(JSON.stringify((t.evidence?.event_filings||[]).slice(0,6)))}</div>
+    <h4>what changes the view</h4><div style="white-space:normal">${esc(t.view_changer)}</div>
+    <h4>evidence</h4><div class="muted num" style="white-space:normal">
+      scores ${esc(JSON.stringify(t.evidence?.score_ids||{}))} ·
+      filings ${esc(JSON.stringify((t.evidence?.event_filings||[]).slice(0,6)))}</div>
   </div>`;
 }
-let SELECTED = null;
 function renderSignals() {
   const sigs = state.signals || [];
   const rows = sigs.map(s => `
     <tr class="sigrow ${SELECTED===s.symbol?'sel':''}" data-sym="${esc(s.symbol)}">
       <td class="stance-${s.stance}">${esc(s.stance)}</td>
-      <td class="num"><span class="bar" style="width:${s.conviction*0.5}px"></span> ${fmt(s.conviction)}</td>
+      <td class="num"><span class="convbar" style="width:${Math.max(4,s.conviction*0.45)}px"></span>${fmt(s.conviction)}</td>
+      <td class="num muted">${fmt(s.confidence,2)}</td>
       <td><b>${esc(s.symbol)}</b></td>
-      <td><span class="pill">${esc(s.risk_verdict)}</span></td>
+      <td><span class="chip ${s.risk_verdict==='clear'?'':'dn'}">${esc(s.risk_verdict)}</span></td>
+      <td class="num">${s.size_pct??'–'}%</td>
       <td class="muted">${esc(s.horizon||'')}</td>
+      <td class="num muted">${s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}</td>
+      <td class="num muted">${s.target&&s.target[0]!=null?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}</td>
+      <td class="num">${fmt(s.invalidation,1)}</td>
     </tr>`).join('');
   $('#main').innerHTML = `
-    <div style="display:flex; gap:14px; align-items:flex-start">
-      <div style="flex:0 0 460px; max-height:82vh; overflow-y:auto">
-        <table><thead><tr><th>stance</th><th>conviction</th><th>symbol</th>
-        <th>risk</th><th>horizon</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="split">
+      <div class="master card" style="padding:0">
+        <table class="tbl"><thead><tr>
+          <th>stance</th><th class="num">conviction</th><th class="num">conf</th>
+          <th>symbol</th><th>risk</th><th class="num">size</th><th>horizon</th>
+          <th class="num">entry</th><th class="num">target</th><th class="num">stop</th>
+        </tr></thead><tbody>${rows}</tbody></table>
       </div>
-      <div id="detail" style="flex:1; min-width:0">
+      <div class="rail" id="detail">
         <div class="card muted">select a signal ←</div>
       </div>
     </div>`;
@@ -154,16 +220,18 @@ function renderSignals() {
 function sparkline(prices) {
   if (!prices || prices.length < 2) return '';
   const cs = prices.map(p => p.c).filter(Boolean);
-  const min = Math.min(...cs), max = Math.max(...cs), W = 560, H = 70;
+  const min = Math.min(...cs), max = Math.max(...cs), W = 420, H = 64;
   const pts = cs.map((c, i) =>
     `${(i / (cs.length - 1) * W).toFixed(1)},` +
     `${(H - (max === min ? H/2 : (c - min) / (max - min) * H)).toFixed(1)}`).join(' ');
   const up = cs[cs.length-1] >= cs[0];
-  return `<svg width="${W}" height="${H+4}" style="overflow:visible">
+  return `<svg width="${W}" height="${H+4}" style="overflow:visible;max-width:100%">
     <polyline points="${pts}" fill="none"
-      stroke="${up ? 'var(--green)' : 'var(--red)'}" stroke-width="1.5"/></svg>
-    <div class="muted">${prices[0].d} → ${prices[prices.length-1].d}
-    · last ${fmt(cs[cs.length-1],2)}</div>`;
+      stroke="${up ? 'var(--up)' : 'var(--dn)'}" stroke-width="1.5"/></svg>
+    <div class="muted num">${prices[0].d} → ${prices[prices.length-1].d}
+    · last <b>${fmt(cs[cs.length-1],2)}</b>
+    <span class="${up?'up':'dn'}">${up?'▲':'▼'}
+    ${fmt(100*(cs[cs.length-1]/cs[0]-1),1)}%</span></div>`;
 }
 
 async function selectCompany(sym) {
@@ -174,46 +242,52 @@ async function selectCompany(sym) {
   el.innerHTML = '<div class="card muted">loading ' + esc(sym) + '…</div>';
   let c;
   try { c = await j('/api/company/' + encodeURIComponent(sym)); }
-  catch (e) { el.innerHTML = `<div class="card bad">${esc(e.message)}</div>`; return; }
+  catch (e) { el.innerHTML = `<div class="card dn">${esc(e.message)}</div>`; return; }
 
   const profs = Object.entries(c.signals || {}).map(([p, s]) => `
     <div class="card">
       <h3>${esc(p)} · ${esc(s.horizon||'')}</h3>
-      <div><span class="stance-${s.stance} big">${esc(s.stance)}</span>
-        conviction <b>${fmt(s.conviction)}</b>
-        <span class="muted">conf ${fmt(s.confidence,2)}</span>
-        <span class="pill">${esc(s.risk_verdict)}</span></div>
-      <div class="muted">entry ${s.entry?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}
-        · target ${s.target?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}
+      <div style="margin-bottom:6px">
+        <span class="stance-${s.stance} big">${esc(s.stance)}</span>
+        <span class="num"> ${fmt(s.conviction)}</span>
+        <span class="muted num">conf ${fmt(s.confidence,2)}</span>
+        <span class="chip ${s.risk_verdict==='clear'?'':'dn'}">${esc(s.risk_verdict)}</span></div>
+      <div class="muted num">entry ${s.entry&&s.entry[0]!=null?fmt(s.entry[0],1)+'–'+fmt(s.entry[1],1):'–'}
+        · target ${s.target&&s.target[0]!=null?fmt(s.target[0],1)+'–'+fmt(s.target[1],1):'–'}
         · stop ${fmt(s.invalidation,1)} · size ${s.size_pct??'–'}%</div>
       ${thesisHtml(s.thesis)}
     </div>`).join('');
 
-  const scoreRow = ['a3','a4','a5','a6'].map(a => {
-    const s = (c.scores||{})[a];
-    return s ? `<span class="pill">${a} ${fmt(s.score,0)} ${esc(s.label||'')}</span>` : '';
-  }).join(' ');
+  const scoreChips = [['a3','fundamental'],['a4','technical'],['a5','flow'],['a6','risk']]
+    .map(([a, label]) => {
+      const s = (c.scores||{})[a];
+      return s ? `<span class="chip" title="${esc(label)}">${label} ${fmt(s.score,0)}
+        ${esc(s.label||'')}</span>` : '';
+    }).join(' ');
 
   const finRows = (c.financials||[]).map(f => `<tr>
-    <td>${esc(f.period_end)}</td><td class="muted">${esc(f.basis[0])}</td>
+    <td class="num">${esc(f.period_end)}</td>
+    <td class="muted">${esc(f.basis[0].toUpperCase())}</td>
     <td class="num">${fmt(f.revenue_cr,0)}</td>
-    <td class="num ${f.pat_cr<0?'bad':''}">${fmt(f.pat_cr,0)}</td>
+    <td class="num ${f.pat_cr<0?'dn':''}">${fmt(f.pat_cr,0)}</td>
     <td class="num muted">${fmt(f.eps,2)}</td></tr>`).join('');
 
-  const filRows = (c.filings||[]).map(f => `<div>
-    <span class="muted">${esc((f.event_at||'').slice(5,10))}</span>
-    <span class="pill">${esc(f.feed)}</span> ${esc((f.subject||'').slice(0,80))}
-    ${f.link?` <a class="muted" target="_blank" href="${esc(f.link)}">doc</a>`:''}</div>`).join('');
+  const filRows = (c.filings||[]).map(f => `<div style="margin:3px 0">
+    <span class="muted num">${esc((f.event_at||'').slice(5,10))}</span>
+    <span class="chip">${esc(f.feed)}</span>
+    ${esc((f.subject||'').slice(0,70))}
+    ${f.link?` <a target="_blank" href="${esc(f.link)}">doc</a>`:''}</div>`).join('');
 
   el.innerHTML = `
-    <div class="card"><h3>${esc(c.symbol)} — 90d</h3>${sparkline(c.prices)}
-      <div style="margin-top:6px">${scoreRow}</div></div>
+    <div class="card"><h3>${esc(c.symbol)} · 90d</h3>${sparkline(c.prices)}
+      <div style="margin-top:8px">${scoreChips}</div></div>
     ${profs || '<div class="card muted">no signals for this symbol</div>'}
-    <div class="card"><h3>Quarterly results (₹ Cr) ·
-      <span class="muted">balance sheet: ${esc(c.balance_sheet)}</span></h3>
-      <table><thead><tr><th>period</th><th></th><th>revenue</th><th>PAT</th>
-      <th>EPS</th></tr></thead><tbody>${finRows||''}</tbody></table></div>
-    <div class="card"><h3>Recent filings (90d)</h3>${filRows||'<span class="muted">none</span>'}</div>`;
+    <div class="card"><h3>Quarterly results · ₹ Cr</h3>
+      <table class="tbl"><thead><tr><th class="num">period</th><th></th>
+      <th class="num">revenue</th><th class="num">PAT</th><th class="num">EPS</th>
+      </tr></thead><tbody>${finRows||''}</tbody></table>
+      <div class="muted" style="margin-top:6px">balance sheet: ${esc(c.balance_sheet)}</div></div>
+    <div class="card"><h3>Filings · 90d</h3>${filRows||'<span class="muted">none</span>'}</div>`;
 }
 
 /* ---------------- performance ---------------- */
@@ -225,7 +299,7 @@ function renderPerformance() {
       <div class="muted">No fully-elapsed measurement windows yet — the first
       1-week numbers land ~5 trading days after the first live signals
       (issued 2026-08-08). The reconstructed walk-forward backtest lives in
-      evaluation/reports/backtest-2026-08-08.json.</div></div>`;
+      evaluation/reports/.</div></div>`;
     return;
   }
   const win = ['1w','4w','12w'];
@@ -233,17 +307,17 @@ function renderPerformance() {
     win.map(w => {
       const b = p[st]?.[w];
       if (!b) return '<td class="muted num">–</td><td class="muted num">–</td><td class="muted num">–</td>';
-      const cls = (b.avg_excess_pct??0) > 0 ? 'ok' : 'bad';
-      return `<td class="num">${b.n}</td><td class="num ${cls}">${fmt(b.avg_excess_pct,2)}%</td>
+      const cls = (b.avg_excess_pct??0) > 0 ? 'up' : 'dn';
+      return `<td class="num">${b.n}</td>
+              <td class="num ${cls}">${fmt(b.avg_excess_pct,2)}%</td>
               <td class="num">${fmt(b.hit_rate_pct,1)}%</td>`;
     }).join('') + '</tr>').join('');
   $('#main').innerHTML = `
-    <table><thead><tr><th>stance</th>
-      ${win.map(w=>`<th>n ${w}</th><th>excess ${w}</th><th>hit ${w}</th>`).join('')}
-    </tr></thead><tbody>${rows}</tbody></table>
-    <p class="muted" style="margin-top:10px">Observed forward returns vs
-    Nifty 500 for signals actually issued live. Reconstructed backtest:
-    see evaluation/reports/.</p>`;
+    <div class="card" style="padding:0"><table class="tbl"><thead><tr><th>stance</th>
+      ${win.map(w=>`<th class="num">n ${w}</th><th class="num">excess ${w}</th><th class="num">hit ${w}</th>`).join('')}
+    </tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted">Observed forward returns vs Nifty 500 for signals actually
+    issued live. Reconstructed backtest: evaluation/reports/.</p>`;
 }
 
 /* ---------------- health ---------------- */
@@ -251,24 +325,28 @@ function renderHealth() {
   const h = state.health || {}, feeds = state.feeds || [], st = state.stats || {};
   const frows = feeds.map(f => {
     const age = f.last_polled_at ? Math.round((Date.now() - new Date(f.last_polled_at))/1000) : null;
-    return `<tr><td>${esc(f.feed)}</td><td class="pill">${esc(f.priority)}</td>
-      <td class="num ${age>600?'bad':''}">${age==null?'never':age+'s ago'}</td>
-      <td>${esc(f.last_status||'')}</td>
+    return `<tr><td>${esc(f.feed)}</td>
+      <td><span class="chip">${esc(f.priority)}</span></td>
+      <td class="num ${age>600?'dn':''}">${age==null?'never':age+'s'}</td>
+      <td class="muted">${esc(f.last_status||'')}</td>
       <td class="num">${f.entries_new}</td>
-      <td class="num ${f.consecutive_errors?'bad':''}">${f.consecutive_errors}</td></tr>`;
+      <td class="num ${f.consecutive_errors?'dn':''}">${f.consecutive_errors}</td></tr>`;
   }).join('');
   $('#main').innerHTML = `
-    <div class="grid" style="margin-bottom:12px">
+    <div class="grid">
       <div class="card"><h3>System</h3>
-        <div class="big ${h.status==='ok'?'ok':'bad'}">${esc(h.status||'?')}</div>
+        <div class="big ${h.status==='ok'?'up':'dn'}">${h.status==='ok'?'● ok':'● '+esc(h.status||'?')}</div>
         <div class="muted">${(h.problems||[]).map(esc).join('<br>')||'no problems'}</div></div>
       <div class="card"><h3>Corpus</h3>
-        <div>filings <b>${st.filings??'–'}</b> · events <b>${st.events??'–'}</b></div>
-        <div>resolution <b>${st.resolved_pct??'–'}%</b></div>
-        <div class="muted">docs: ${esc(JSON.stringify(st.documents||{}))}</div></div>
+        <div>filings <b class="num">${st.filings??'–'}</b> ·
+             events <b class="num">${st.events??'–'}</b></div>
+        <div>resolution <b class="num">${st.resolved_pct??'–'}%</b></div>
+        <div class="muted num">docs ${esc(JSON.stringify(st.documents||{}))}</div></div>
     </div>
-    <table><thead><tr><th>feed</th><th>pri</th><th>last poll</th><th>status</th>
-    <th>new</th><th>errs</th></tr></thead><tbody>${frows}</tbody></table>`;
+    <div class="card" style="padding:0"><table class="tbl"><thead><tr>
+      <th>feed</th><th>pri</th><th class="num">last poll</th><th>status</th>
+      <th class="num">new</th><th class="num">errs</th></tr></thead>
+      <tbody>${frows}</tbody></table></div>`;
 }
 
 /* ---------------- shell ---------------- */
@@ -280,8 +358,9 @@ async function refresh() {
     const [health, stats] = await Promise.all([j('/health'), j('/api/stats')]);
     state.health = health; state.stats = stats;
     $('#topstat').innerHTML =
-      `<span class="${health.status==='ok'?'ok':'bad'}">●</span> ` +
-      `${stats.filings} filings · ${stats.events} events`;
+      `<span class="${health.status==='ok'?'up':'dn'}">●</span> ` +
+      `<span class="num">${stats.filings}</span> filings · ` +
+      `<span class="num">${stats.events}</span> events`;
     if (TAB === 'pulse') {
       [state.pulse, state.alerts] = await Promise.all(
         [j('/api/pulse?hours=48&min_materiality=5&limit=60'), j('/api/alerts?limit=20')]);
@@ -307,6 +386,17 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
     x.classList.toggle('on', x === b));
   refresh();
 });
+
+/* theme toggle — same ◐ affordance and data-theme mechanism as
+   ltp-monitor; remembered in localStorage */
+const savedTheme = localStorage.getItem('ms-theme');
+if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+$('#themeBtn').onclick = () => {
+  const cur = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = cur;
+  localStorage.setItem('ms-theme', cur);
+};
+
 refresh();
 setInterval(refresh, 30000);
 </script>

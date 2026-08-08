@@ -236,11 +236,18 @@ def _size_pct(a4: Score | None, risk_verdict: str) -> float | None:
 
 
 def _thesis(symbol: str, inputs: dict, ev_evidence: list[dict],
-            a6: Score | None, conviction: float) -> dict:
+            a6: Score | None, conviction: float,
+            weights: dict[str, float] | None = None) -> dict:
     bullets_for: list[str] = []
     bullets_against: list[str] = []
 
-    a3, a4, a5 = inputs.get("a3"), inputs.get("a4"), inputs.get("a5")
+    # zero-weight axes did not drive this conviction — citing them in the
+    # thesis is a false evidence trail (found live: a 1-5d short signal
+    # quoting fundamentals that carried 0 weight)
+    w = weights or {}
+    a3 = inputs.get("a3") if w.get("fundamental", 1) > 0 else None
+    a4 = inputs.get("a4") if w.get("technical", 1) > 0 else None
+    a5 = inputs.get("a5") if w.get("flow", 1) > 0 else None
     if a4:
         c = a4.components or {}
         line = (f"technical {a4.score:.0f}/100 ({a4.label}); close {c.get('close')} "
@@ -336,7 +343,7 @@ def fuse_symbol(db, symbol: str, *, profile: str = "default",
     stance = _stance(conviction, risk_verdict)
     levels = _levels(inputs.get("a4"))
     thesis = _thesis(symbol, {**inputs, **({"a6": a6} if a6 else {})},
-                     ev_evidence, a6, conviction)
+                     ev_evidence, a6, conviction, weights=weights)
     thesis["weights_covered_pct"] = total_w
     thesis["event_score"] = ev_score
 

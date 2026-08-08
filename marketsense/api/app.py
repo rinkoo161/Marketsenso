@@ -23,6 +23,16 @@ app = FastAPI(title="MarketSense", version=__version__)
 STALE_AFTER = {"P0": 300, "P1": 1800, "P2": 7200}  # sec since last poll = unhealthy
 
 
+@app.get("/", include_in_schema=False)
+def dashboard():
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(Path(__file__).parent / "static" / "dashboard.html",
+                        headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/health")
 def health():
     """Overall + per-feed health. 'degraded' names its causes."""

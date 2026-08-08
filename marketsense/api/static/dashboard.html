@@ -102,16 +102,19 @@ th.sortable:hover{color:var(--text)}
 .convbar{display:inline-block;height:7px;border-radius:3px;
   background:var(--accent);vertical-align:middle;margin-right:7px}
 
-/* signals master-detail: table gets the room it needs; detail rail
-   fixed-width; stacks below 1100px */
-.split{display:flex;gap:14px;align-items:flex-start}
-.split .master{flex:1 1 auto;min-width:0;overflow-x:auto;
-  max-height:calc(100vh - 120px);overflow-y:auto}
-.split .rail{flex:0 0 470px;max-height:calc(100vh - 120px);overflow-y:auto}
-@media (max-width:1100px){
-  .split{flex-direction:column}
-  .split .rail{flex:1 1 auto;width:100%;max-height:none}
-}
+/* signals layout: full-width table on top (~10 rows visible, scrolls),
+   full-width detail below (user request 2026-08-09) */
+.split{display:flex;flex-direction:column;gap:14px}
+.split .master{width:100%;overflow-x:auto;overflow-y:auto;
+  max-height:462px}  /* header + ~10 rows */
+.split .master .tbl th{top:0}  /* sticky inside the scroll box, not the page */
+.split .rail{width:100%}
+/* detail sections use the full width as a responsive card grid;
+   the first (chart) card spans everything */
+.rail .detail-grid{display:grid;gap:12px;
+  grid-template-columns:repeat(auto-fit,minmax(430px,1fr))}
+.rail .detail-grid .card{margin-bottom:0}
+.rail .detail-grid .card.wide{grid-column:1 / -1}
 .sigrow{cursor:pointer}
 .sigrow.sel td{background:var(--panel2);
   box-shadow:inset 2px 0 0 var(--accent)}
@@ -329,13 +332,14 @@ function renderSignals() {
 function sparkline(prices) {
   if (!prices || prices.length < 2) return '';
   const cs = prices.map(p => p.c).filter(Boolean);
-  const min = Math.min(...cs), max = Math.max(...cs), W = 420, H = 64;
+  const min = Math.min(...cs), max = Math.max(...cs), W = 1000, H = 90;
   const pts = cs.map((c, i) =>
     `${(i / (cs.length - 1) * W).toFixed(1)},` +
     `${(H - (max === min ? H/2 : (c - min) / (max - min) * H)).toFixed(1)}`).join(' ');
   const up = cs[cs.length-1] >= cs[0];
-  return `<svg width="${W}" height="${H+4}" style="overflow:visible;max-width:100%">
-    <polyline points="${pts}" fill="none"
+  return `<svg viewBox="0 0 ${W} ${H+4}" preserveAspectRatio="none"
+      style="width:100%;height:96px;display:block">
+    <polyline points="${pts}" fill="none" vector-effect="non-scaling-stroke"
       stroke="${up ? 'var(--up)' : 'var(--dn)'}" stroke-width="1.5"/></svg>
     <div class="muted num">${prices[0].d} → ${prices[prices.length-1].d}
     · last <b>${fmt(cs[cs.length-1],2)}</b>
@@ -434,8 +438,8 @@ async function selectCompany(sym) {
     ${esc((f.subject||'').slice(0,70))}
     ${f.link?` <a target="_blank" href="${esc(f.link)}">doc</a>`:''}</div>`).join('');
 
-  el.innerHTML = `
-    <div class="card"><h3>${esc(c.symbol)}${c.industry?` · <span class="chip">${esc(c.industry)}</span>`:''}</h3>
+  el.innerHTML = `<div class="detail-grid">
+    <div class="card wide"><h3>${esc(c.symbol)}${c.industry?` · <span class="chip">${esc(c.industry)}</span>`:''}</h3>
       <div class="ratios">${ratioStrip||'<span class="muted">ratios pending data</span>'}</div>
       ${sparkline(c.prices)}
       <div style="margin-top:8px">${scoreChips}</div></div>
@@ -445,9 +449,11 @@ async function selectCompany(sym) {
       <div class="muted" style="margin-top:6px">balance sheet: ${esc(c.balance_sheet)}</div></div>
     <div class="card"><h3>Shareholding pattern</h3>${shTable}</div>
     ${peerTable?`<div class="card"><h3>Peers · ${esc(c.industry||'')}</h3>${peerTable}</div>`:''}
-    <div class="card"><h3>Filings · 90d</h3>${filRows||'<span class="muted">none</span>'}</div>`;
+    <div class="card"><h3>Filings · 90d</h3>${filRows||'<span class="muted">none</span>'}</div>
+  </div>`;
   el.querySelectorAll('.sigrow[data-sym]').forEach(r =>
     r.onclick = () => selectCompany(r.dataset.sym));
+  el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
 /* ---------------- performance ---------------- */

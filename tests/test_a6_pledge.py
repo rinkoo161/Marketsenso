@@ -18,6 +18,9 @@ from marketsense.db.models import Filing, PriceDaily, PromoterPledge
 NOW = datetime(2026, 8, 8, 12, 0, tzinfo=timezone.utc)
 
 SHP_XML = """<xbrli:xbrl xmlns:in-bse-shp="http://example/shp">
+<xbrli:context id="ShareholdingOfPromoterAndPromoterGroup_ContextI"><xbrli:entity>
+<xbrldi:explicitMember dimension="in-bse-shp:d">in-bse-shp:ShareholdingOfPromoterAndPromoterGroupMember</xbrldi:explicitMember>
+</xbrli:entity></xbrli:context>
 <in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares
   contextRef="ShareholdingOfPromoterAndPromoterGroup_ContextI"
   unitRef="pure" decimals="4">0.2227</in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares>
@@ -43,6 +46,43 @@ def test_parse_promoter_context_only_fractions_scaled():
 
 def test_parse_without_promoter_context_is_none():
     assert parse_shp_xbrl("<xbrl><a:X contextRef='Other_C1'>5</a:X></xbrl>") is None
+
+
+OLD_ERA_XML = """<xbrli:xbrl xmlns:in-bse-shp="http://example/shp">
+<xbrli:context id="ShareholdingOfPromoterAndPromoterGroupI"><xbrli:entity>
+<xbrldi:explicitMember dimension="in-bse-shp:d">in-bse-shp:ShareholdingOfPromoterAndPromoterGroupMember</xbrldi:explicitMember>
+</xbrli:entity></xbrli:context>
+<in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares
+  contextRef="ShareholdingOfPromoterAndPromoterGroupI">0.1637</in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares>
+<in-bse-shp:PledgedOrEncumberedSharesHeldAsPercentageOfTotalNumberOfShares
+  contextRef="ShareholdingOfPromoterAndPromoterGroupI">0.6144</in-bse-shp:PledgedOrEncumberedSharesHeldAsPercentageOfTotalNumberOfShares>
+</xbrli:xbrl>"""
+
+AFFIRMED_ZERO_XML = """<xbrli:xbrl xmlns:in-bse-shp="http://example/shp">
+<xbrli:context id="ShareholdingOfPromoterAndPromoterGroup_ContextI"><xbrli:entity>
+<xbrldi:explicitMember dimension="in-bse-shp:d">in-bse-shp:ShareholdingOfPromoterAndPromoterGroupMember</xbrldi:explicitMember>
+</xbrli:entity></xbrli:context>
+<in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares
+  contextRef="ShareholdingOfPromoterAndPromoterGroup_ContextI">0.3509</in-bse-shp:ShareholdingAsAPercentageOfTotalNumberOfShares>
+<in-bse-shp:WhetherAnySharesHeldByPromotersAreEncumberedUnderPledged
+  contextRef="C1">false</in-bse-shp:WhetherAnySharesHeldByPromotersAreEncumberedUnderPledged>
+</xbrli:xbrl>"""
+
+
+def test_parse_old_era_pledged_element_name():
+    # FEL 2023 shape: PledgedOrEncumbered..., context id without _Context
+    r = parse_shp_xbrl(OLD_ERA_XML)
+    assert r["promoter_pct"] == 16.37
+    assert r["encumbered_pct"] == 61.44
+
+
+def test_parse_omitted_facts_with_all_false_booleans_is_affirmed_zero():
+    # DEVX shape: zero-pledge companies omit the facts; the booleans
+    # affirm the zero. Omission WITHOUT the booleans must stay unknown.
+    r = parse_shp_xbrl(AFFIRMED_ZERO_XML)
+    assert r["encumbered_pct"] == 0.0
+    r2 = parse_shp_xbrl(AFFIRMED_ZERO_XML.replace("false", "true"))
+    assert r2["encumbered_pct"] is None
 
 
 def _seed_prices(db, symbol):

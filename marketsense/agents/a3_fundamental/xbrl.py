@@ -88,15 +88,23 @@ def parse_instance(path: str | Path) -> dict | None:
                 pass
 
     basis_raw = (main.get("NatureOfReportStandaloneConsolidated") or "").lower()
+    start = _date(main.get("DateOfStartOfReportingPeriod"))
+    end = _date(main.get("DateOfEndOfReportingPeriod"))
+    # Quarterly-ness from DATE MATH, not the label: Sep-30 filings labelled
+    # "Quarterly" routinely carry Apr-Sep H1 cumulatives (reconciliation
+    # gate 2026-08-08: IRFC/VEDL/OIL/CGPOWER all ~2x on Sep quarters).
+    period_days = (end - start).days if (start and end) else None
+    is_quarter = period_days is not None and 80 <= period_days <= 100
     return {
         "symbol": (main.get("Symbol") or "").strip().upper() or None,
-        "period_start": _date(main.get("DateOfStartOfReportingPeriod")),
-        "period_end": _date(main.get("DateOfEndOfReportingPeriod")),
+        "period_start": start,
+        "period_end": end,
+        "period_days": period_days,
         "basis": "consolidated" if "consolidated" in basis_raw and "non" not in basis_raw
                  else "standalone",
         "audited": (main.get("WhetherResultsAreAuditedOrUnaudited") or ""
                     ).lower().startswith("audited"),
-        "quarterly": (main.get("TypeOfReportingPeriod") or "").lower() == "quarterly",
+        "quarterly": is_quarter,
         "values": values,
         # every main-context fact survives, per §10 traceability
         "raw": {k: v for k, v in main.items()},

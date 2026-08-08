@@ -40,6 +40,13 @@ def load_all(db_factory, *, limit: int | None = None) -> dict:
             if inst is None:
                 stats["not_results"] += 1
                 continue
+            if not inst["quarterly"]:
+                # H1/9M/annual cumulatives are NOT quarters; storing one
+                # under its end date doubles the "quarter" (gate finding
+                # 2026-08-08). De-cumulation is future work; skipping is
+                # honest today.
+                stats["non_quarter"] = stats.get("non_quarter", 0) + 1
+                continue
             symbol = inst["symbol"]
             event_at = None
             if filing_id:
@@ -75,18 +82,42 @@ def load_all(db_factory, *, limit: int | None = None) -> dict:
             # revision and wins).
             deduped: dict[tuple, dict] = {}
             for row in batch:
-                deduped[(row["symbol"], row["period_end"], row["basis"])] = row
+                key = (row["symbol"], row["period_end"], row["basis"])
+                prev = deduped.get(key)
+                if prev is not None:
+                    # Misfile guard (RKFORGE 2026-08-08: same quarter filed
+                    # once correct, once at exactly 10x; both internally
+                    # consistent). When duplicates disagree wildly, trust
+                    # the one closer to the symbol's own median revenue.
+                    r_new, r_old = row.get("revenue"), prev.get("revenue")
+                    if (r_new and r_old
+                            and max(r_new, r_old) > 5 * min(r_new, r_old)):
+                        others = [b["revenue"] for b in batch
+                                  if b["symbol"] == row["symbol"]
+                                  and b["period_end"] != row["period_end"]
+                                  and b.get("revenue")]
+                        if others:
+                            med = sorted(others)[len(others) // 2]
+                            if abs(r_old - med) < abs(r_new - med):
+                                continue  # keep prev; drop the outlier
+                deduped[key] = row
             batch = list(deduped.values())
-            stmt = pg_insert(FinancialsQuarterly).values(batch)
-            stmt = stmt.on_conflict_do_update(
-                constraint="uq_fin_symbol_period_basis",
-                set_={c: stmt.excluded[c] for c in
-                      ("revenue", "other_income", "total_income", "expenses",
-                       "finance_costs", "depreciation", "pbt", "tax", "pat",
-                       "eps_basic", "audited", "raw", "filing_id",
-                       "event_at", "security_id")},
-            )
-            db.execute(stmt)
+            # Chunked: ~19 params/row against Postgres's 65,535-parameter
+            # wire limit — a single statement died at corpus scale
+            # (live crash 2026-08-08, 500-symbol backfill's final pass).
+            CHUNK = 1500
+            for i in range(0, len(batch), CHUNK):
+                chunk = batch[i:i + CHUNK]
+                stmt = pg_insert(FinancialsQuarterly).values(chunk)
+                stmt = stmt.on_conflict_do_update(
+                    constraint="uq_fin_symbol_period_basis",
+                    set_={c: stmt.excluded[c] for c in
+                          ("revenue", "other_income", "total_income", "expenses",
+                           "finance_costs", "depreciation", "pbt", "tax", "pat",
+                           "eps_basic", "audited", "raw", "filing_id",
+                           "event_at", "security_id")},
+                )
+                db.execute(stmt)
             stats["loaded"] = len(batch)
         db.commit()
     log.info("a3_loaded", **stats)

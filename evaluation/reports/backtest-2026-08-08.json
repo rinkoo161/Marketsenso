@@ -1,0 +1,72 @@
+{
+ "harness": "wf-v1",
+ "profile": "default",
+ "pit_quality": "reconstructed",
+ "replayable_axes": "fundamental+technical+event (flow and surveillance history unavailable)",
+ "rebalances": 22,
+ "symbols_tested": 610,
+ "observations": 8333,
+ "nifty500_buy_hold_pct": -0.46,
+ "by_stance": {
+  "buy": {
+   "observations": 2574,
+   "avg_excess_1w": 0.33,
+   "hit_rate_1w": 51.0,
+   "avg_ret_1w": 0.02,
+   "avg_excess_4w": 2.03,
+   "hit_rate_4w": 55.0,
+   "avg_ret_4w": 0.69,
+   "avg_excess_12w": 6.03,
+   "hit_rate_12w": 58.7,
+   "avg_ret_12w": 4.65
+  },
+  "accumulate": {
+   "observations": 1803,
+   "avg_excess_1w": -0.03,
+   "hit_rate_1w": 47.6,
+   "avg_ret_1w": -0.26,
+   "avg_excess_4w": 0.77,
+   "hit_rate_4w": 51.4,
+   "avg_ret_4w": -0.12,
+   "avg_excess_12w": 5.28,
+   "hit_rate_12w": 54.4,
+   "avg_ret_12w": 4.41
+  },
+  "hold": {
+   "observations": 3068,
+   "avg_excess_1w": -0.17,
+   "hit_rate_1w": 45.4,
+   "avg_ret_1w": -0.35,
+   "avg_excess_4w": 0.89,
+   "hit_rate_4w": 49.5,
+   "avg_ret_4w": 0.53,
+   "avg_excess_12w": 4.28,
+   "hit_rate_12w": 53.4,
+   "avg_ret_12w": 3.67
+  },
+  "reduce": {
+   "observations": 757,
+   "avg_excess_1w": -0.26,
+   "hit_rate_1w": 43.3,
+   "avg_ret_1w": -0.5,
+   "avg_excess_4w": 1.02,
+   "hit_rate_4w": 50.7,
+   "avg_ret_4w": 0.59,
+   "avg_excess_12w": 4.18,
+   "hit_rate_12w": 56.5,
+   "avg_ret_12w": 2.89
+  },
+  "exit": {
+   "observations": 131,
+   "avg_excess_1w": 1.02,
+   "hit_rate_1w": 42.0,
+   "avg_ret_1w": 0.61,
+   "avg_excess_4w": 4.71,
+   "hit_rate_4w": 55.7,
+   "avg_ret_4w": 4.48,
+   "avg_excess_12w": 12.69,
+   "hit_rate_12w": 67.9,
+   "avg_ret_12w": 12.51
+  }
+ }
+}

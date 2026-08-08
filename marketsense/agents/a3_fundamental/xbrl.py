@@ -36,6 +36,23 @@ FACT_MAP = {
     "BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations": "eps_basic",
 }
 
+# Banks file under SEBI's BANKING taxonomy with different fact names —
+# discovered 2026-08-09 when RBLBANK (and the whole sector) had 16 result
+# filings and zero parsed quarters. Applied as a FALLBACK per column, so
+# non-bank instances are untouched. Semantics: revenue = InterestEarned
+# (the bank's core top line, Screener-comparable); finance_costs =
+# InterestExpended; total_income = Income (interest + other).
+BANK_FACT_MAP = {
+    "InterestEarned": "revenue",
+    "OtherIncome": "other_income",
+    "Income": "total_income",
+    "ExpenditureExcludingProvisionsAndContingencies": "expenses",
+    "InterestExpended": "finance_costs",
+    "ProfitLossFromOrdinaryActivitiesBeforeTax": "pbt",
+    "ProfitLossForThePeriod": "pat",
+    "BasicEarningsPerShareAfterExtraordinaryItems": "eps_basic",
+}
+
 META_FACTS = {
     "Symbol", "ScripCode", "DateOfStartOfReportingPeriod",
     "DateOfEndOfReportingPeriod", "NatureOfReportStandaloneConsolidated",
@@ -69,7 +86,9 @@ def parse_instance(path: str | Path) -> dict | None:
         return None  # not a results instance
 
     main = {name: text for name, ctx, text in facts if ctx == main_ctx}
-    if "ProfitLossForPeriod" not in main and "RevenueFromOperations" not in main:
+    if not any(k in main for k in
+               ("ProfitLossForPeriod", "RevenueFromOperations",
+                "ProfitLossForThePeriod", "InterestEarned")):
         return None  # results shell without a P&L (e.g. audit-qualification file)
 
     def _date(s: str | None) -> datetime | None:
@@ -79,13 +98,16 @@ def parse_instance(path: str | Path) -> dict | None:
             return None
 
     values: dict[str, float] = {}
-    for fact, col in FACT_MAP.items():
-        v = main.get(fact)
-        if v is not None:
-            try:
-                values[col] = float(v)
-            except ValueError:
-                pass
+    for fact_map in (FACT_MAP, BANK_FACT_MAP):
+        for fact, col in fact_map.items():
+            if col in values:
+                continue  # primary (corporate) mapping wins per column
+            v = main.get(fact)
+            if v is not None:
+                try:
+                    values[col] = float(v)
+                except ValueError:
+                    pass
 
     basis_raw = (main.get("NatureOfReportStandaloneConsolidated") or "").lower()
     start = _date(main.get("DateOfStartOfReportingPeriod"))

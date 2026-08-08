@@ -363,7 +363,9 @@ def company(symbol: str):
     if not (signals or scores or fins or closes):
         raise HTTPException(404, f"nothing known about {sym}")
     return {
-        "symbol": sym, "signals": signals, "scores": scores,
+        "symbol": sym,
+        "company_name": me.company_name if me else None,
+        "signals": signals, "scores": scores,
         "financials": fins,
         "balance_sheet": "not yet parsed (H1/annual instances only; "
                          "quarterly XBRL is P&L-only)",

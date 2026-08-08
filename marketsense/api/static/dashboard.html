@@ -488,6 +488,7 @@ async function selectCompany(sym, opts = {}) {
     <div class="card wide">
       <div class="cohead"><span class="coname">${esc(c.symbol)}</span>
         ${c.industry?`<span class="chip">${esc(c.industry)}</span>`:''}</div>
+      ${c.company_name?`<div class="dim" style="font-size:14px;margin:-4px 0 8px">${esc(c.company_name)}</div>`:''}
       <div class="ratios">${ratioStrip||'<span class="muted">ratios pending data</span>'}</div>
       ${sparkline(c.prices)}
       <div style="margin-top:8px">${scoreChips}</div></div>

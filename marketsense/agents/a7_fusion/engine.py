@@ -34,7 +34,9 @@ from marketsense.db.models import Filing, FilingClassification, Score, Signal
 
 log = get_logger("a7.engine")
 
-MODEL_VERSION = f"a7-v1-{PROFILES_VERSION}"
+# v2 (2026-08-09): confidence scales with weight coverage (missing axes
+# cost confidence rather than being normalised away)
+MODEL_VERSION = f"a7-v2-{PROFILES_VERSION}"
 HYSTERESIS = 8.0
 EVENT_WINDOW_D = 30
 
@@ -65,8 +67,12 @@ def weighted_fusion(values: dict[str, tuple[float, float] | None],
         total_w += w
     if total_w < floor:
         return None
+    # confidence = conf_acc/100, NOT conf_acc/total_w: normalising over
+    # covered weight only let a fundamentals-blind signal (45% coverage)
+    # report 80% confidence (DIAMONDYD audit, 2026-08-09). Missing axes
+    # must cost confidence — same contract A3 already honours.
     return (round(conviction * 100.0 / total_w, 1),
-            round(conf_acc / total_w, 2), total_w)
+            round(conf_acc / 100.0, 2), total_w)
 
 
 def event_score(db, symbol: str, *, now: datetime,
@@ -377,7 +383,10 @@ def issue_all(db_factory, *, profile: str = "default") -> dict:
                                      Signal.profile == profile)
                 .order_by(Signal.as_of.desc()).limit(1)).first()
             if (prev is not None and prev.stance == result["stance"]
-                    and abs(prev.conviction - result["conviction"]) <= HYSTERESIS):
+                    and abs(prev.conviction - result["conviction"]) <= HYSTERESIS
+                    and prev.model_version == MODEL_VERSION):
+                # a model-version change always re-issues — semantics
+                # changed, so the stored row no longer means the same thing
                 stats["held_by_hysteresis"] += 1
                 continue
             row = Signal(model_version=MODEL_VERSION, as_of=now, **{

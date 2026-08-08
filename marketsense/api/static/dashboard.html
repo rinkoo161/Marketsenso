@@ -496,7 +496,10 @@ async function selectCompany(sym, opts = {}) {
       <div style="overflow-x:auto">${qTable}</div>
       <div class="muted" style="margin-top:6px">balance sheet: ${esc(c.balance_sheet)}</div></div>
     <div class="card"><h3>Shareholding pattern</h3>${shTable}</div>
-    ${peerTable?`<div class="card"><h3>Peers · ${esc(c.industry||'')}</h3>${peerTable}</div>`:''}
+    <div class="card"><h3>Peers${c.industry?` · ${esc(c.industry)}`:''}</h3>
+      ${peerTable || `<span class="muted">${c.industry
+        ? 'no scored peers in this industry yet'
+        : 'industry not yet tagged for this company — the map grows from filing metadata as announcements arrive'}</span>`}</div>
     <div class="card"><h3>Filings · 90d</h3>${filRows||'<span class="muted">none</span>'}</div>
   </div>`;
   el.querySelectorAll('.sigrow[data-sym]').forEach(r =>

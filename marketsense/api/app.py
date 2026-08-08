@@ -346,7 +346,13 @@ def company(symbol: str):
                         .order_by(Score.as_of.desc()).limit(1)).first()
                     if sc:
                         row[agent] = round(sc.score)
-                sig = db.scalars(select(Signal).where(Signal.symbol == ps)
+                # default profile only — peers must be compared on the
+                # SAME horizon, and the short book re-issues later so a
+                # naive latest-row query showed short stances (live bug:
+                # Power peers all read 'exit' from their 1-5d signals)
+                sig = db.scalars(select(Signal)
+                                 .where(Signal.symbol == ps,
+                                        Signal.profile == "default")
                                  .order_by(Signal.as_of.desc()).limit(1)).first()
                 if sig:
                     row["stance"] = sig.stance

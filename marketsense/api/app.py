@@ -144,9 +144,18 @@ def signals(stance: str | None = None, min_conviction: float = Query(0, le=100),
     with session() as db:
         rows = list(db.scalars(
             select(Signal).order_by(Signal.as_of.desc()).limit(2000)))
+        # latest per symbol, PREFERRING the default profile — the short
+        # profile re-issues later in the same EOD run and was shadowing
+        # default rows (JSWENERGY showed short/hold 59.8 while its default
+        # accumulate 64.7 was the intended list entry). Company detail
+        # shows every profile regardless.
         latest: dict[str, object] = {}
-        for s in rows:
-            latest.setdefault(s.symbol, s)
+        for s in rows:  # rows are newest-first
+            cur = latest.get(s.symbol)
+            if cur is None:
+                latest[s.symbol] = s
+            elif s.profile == "default" and cur.profile != "default":
+                latest[s.symbol] = s  # default outranks other profiles
         candidates = [s for s in latest.values()
                       if s.conviction >= min_conviction
                       and (not stance or s.stance == stance)]
